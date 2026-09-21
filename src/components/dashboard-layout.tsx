@@ -8,7 +8,8 @@ import {
     Sun,
     Moon,
 } from "lucide-react"
-import { useMemo, useState, useEffect } from "react"
+import { useMemo } from "react"
+import { useTheme } from "next-themes"
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
@@ -84,6 +85,7 @@ function getInitials(name: string): string {
 }
 
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
+    const { resolvedTheme, setTheme } = useTheme()
     const currentUser = useMemo(() => auth.getCurrentUser(), [])
     const userInitials = useMemo(
         () => (currentUser ? getInitials(currentUser.full_name) : ""),
@@ -92,30 +94,8 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
     const userName = currentUser?.full_name ?? "User"
     const userEmail = currentUser?.email ?? ""
 
-    // Theme state management
-    const [theme, setTheme] = useState(() => {
-        // Check localStorage for saved theme
-        const savedTheme = localStorage.getItem("theme")
-        if (savedTheme) return savedTheme
-        // Check system preference
-        if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
-            return "dark"
-        }
-        return "light"
-    })
-
-    useEffect(() => {
-        // Apply theme to document
-        const root = window.document.documentElement
-        root.classList.remove("light", "dark")
-        root.classList.add(theme)
-        // Save to localStorage
-        localStorage.setItem("theme", theme)
-    }, [theme])
-
-    // Function to toggle theme
     const toggleTheme = () => {
-        setTheme(prev => prev === "light" ? "dark" : "light")
+        setTheme(resolvedTheme === "light" ? "dark" : "light")
     }
 
     return (
@@ -211,7 +191,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
                             onClick={toggleTheme}
                             aria-label="Toggle theme"
                         >
-                            {theme === "light" ? (
+                            {resolvedTheme === "light" ? (
                                 <Moon className="size-5" />
                             ) : (
                                 <Sun className="size-5" />

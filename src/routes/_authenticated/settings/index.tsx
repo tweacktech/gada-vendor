@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router"
-import { KeyIcon, Loader2Icon, MapPinIcon, MoonIcon, PaletteIcon, SunIcon, UserCircleIcon } from "lucide-react"
+import { KeyIcon, Loader2Icon, MapPinIcon, MonitorIcon, MoonIcon, PaletteIcon, SunIcon, UserCircleIcon } from "lucide-react"
 import { useEffect, useState } from "react"
 import { useTheme } from "next-themes"
 
@@ -252,11 +252,20 @@ function SettingsPage() {
                                 <FieldContent>
                                     <FieldTitle>Theme</FieldTitle>
                                     <FieldDescription>
-                                        Switch between light and dark mode.
+                                        Follow your device theme or choose light or dark mode.
                                     </FieldDescription>
                                 </FieldContent>
                                 {mounted ? (
-                                    <div className="flex gap-2">
+                                    <div className="flex flex-wrap gap-2">
+                                        <Button
+                                            variant={theme === "system" ? "default" : "outline"}
+                                            size="sm"
+                                            className="gap-2"
+                                            onClick={() => setTheme("system")}
+                                        >
+                                            <MonitorIcon className="size-4" />
+                                            System
+                                        </Button>
                                         <Button
                                             variant={theme === "light" ? "default" : "outline"}
                                             size="sm"
@@ -277,7 +286,11 @@ function SettingsPage() {
                                         </Button>
                                     </div>
                                 ) : (
-                                    <div className="flex gap-2">
+                                    <div className="flex flex-wrap gap-2">
+                                        <Button variant="outline" size="sm" disabled className="gap-2">
+                                            <MonitorIcon className="size-4" />
+                                            System
+                                        </Button>
                                         <Button variant="outline" size="sm" disabled className="gap-2">
                                             <SunIcon className="size-4" />
                                             Light

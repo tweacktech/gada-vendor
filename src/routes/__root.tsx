@@ -5,7 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip"
 
 export const Route = createRootRoute({
     component: () => (
-        <ThemeProvider attribute="class" defaultTheme="light" storageKey="gadaride-theme">
+        <ThemeProvider attribute="class" defaultTheme="system" enableSystem storageKey="gadaride-theme">
             <TooltipProvider>
                 <Outlet />
                 <Toaster richColors position="top-right" />
