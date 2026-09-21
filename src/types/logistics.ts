@@ -49,6 +49,7 @@ export interface Rider {
 export interface Vendor {
   id: string;
   name: string;
+  business_name?: string;
   address: string;
   phone_number: string;
   email: string;

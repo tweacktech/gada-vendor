@@ -1,9 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router"
-import { MoonIcon, SunIcon, KeyIcon, PaletteIcon, UserCircleIcon } from "lucide-react"
+import { KeyIcon, Loader2Icon, MapPinIcon, MoonIcon, PaletteIcon, SunIcon, UserCircleIcon } from "lucide-react"
 import { useEffect, useState } from "react"
 import { useTheme } from "next-themes"
 
 import { usePageTitle } from "@/hooks/usePageTitle"
+import { api, ApiError } from "@/lib/api"
+import { auth } from "@/lib/auth"
 import { Button } from "@/components/ui/button"
 import {
     Card,
@@ -21,8 +23,9 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { AddressAutocomplete } from "@/components/ui/address-autocomplete"
+import { MapPickerModal } from "@/components/map-picker-modal"
 import { toast } from "sonner"
 
 export const Route = createFileRoute("/_authenticated/settings/")({
@@ -38,13 +41,59 @@ function SettingsPage() {
         setMounted(true)
     }, [])
 
-    // ── Profile Form State ────────────────────────────────────────────────
     const [profileData, setProfileData] = useState({
-        full_name: "John Doe",
-        email: "john@example.com",
-        phone: "+234 801 234 5678",
-        address: "123 Main St, Lagos, Nigeria",
+        full_name: "",
+        email: "",
+        phone: "",
     })
+    const [vendorId, setVendorId] = useState<string | null>(null)
+    const [vendorData, setVendorData] = useState({
+        name: "",
+        email: "",
+        phone_number: "",
+        address: "",
+        latitude: "",
+        longitude: "",
+    })
+    const [profileLoading, setProfileLoading] = useState(true)
+    const [savingProfile, setSavingProfile] = useState(false)
+    const [savingVendor, setSavingVendor] = useState(false)
+    const [reverseGeocoding, setReverseGeocoding] = useState(false)
+    const [mapOpen, setMapOpen] = useState(false)
+
+    useEffect(() => {
+        let active = true
+        api.getVendorAccount()
+            .then((account) => {
+                if (!active) return
+                setProfileData({
+                    full_name: account.full_name ?? "",
+                    email: account.email ?? "",
+                    phone: account.phone ?? "",
+                })
+                if (account.vendor) {
+                    const vendor = account.vendor
+                    setVendorId(String(vendor.id))
+                    setVendorData({
+                        name: vendor.name ?? vendor.business_name ?? "",
+                        email: vendor.email ?? "",
+                        phone_number: vendor.phone_number ?? "",
+                        address: vendor.address ?? "",
+                        latitude: String(vendor.latitude ?? vendor.lat ?? ""),
+                        longitude: String(vendor.longitude ?? vendor.lng ?? ""),
+                    })
+                }
+            })
+            .catch((err) => {
+                toast.error(err instanceof ApiError ? err.message : "Could not load account details")
+            })
+            .finally(() => {
+                if (active) setProfileLoading(false)
+            })
+        return () => {
+            active = false
+        }
+    }, [])
 
     // ── Password Form State ──────────────────────────────────────────────
     const [passwordData, setPasswordData] = useState({
@@ -53,9 +102,98 @@ function SettingsPage() {
         confirm_password: "",
     })
 
-    const handleProfileUpdate = (e: React.FormEvent) => {
+    const handleProfileUpdate = async (e: React.FormEvent) => {
         e.preventDefault()
-        toast.success("Profile updated successfully!")
+        setSavingProfile(true)
+        try {
+            await api.updateVendorAccount(profileData)
+            const current = auth.getCurrentUser()
+            if (current) {
+                auth.setCurrentUser({
+                    ...current,
+                    full_name: profileData.full_name,
+                    email: profileData.email,
+                })
+            }
+            toast.success("Account updated successfully")
+        } catch (err) {
+            toast.error(err instanceof ApiError ? err.message : "Failed to update account")
+        } finally {
+            setSavingProfile(false)
+        }
+    }
+
+    const handleVendorUpdate = async (e: React.FormEvent) => {
+        e.preventDefault()
+        if (!vendorId) {
+            toast.error("No vendor is linked to this account")
+            return
+        }
+        const latitude = Number(vendorData.latitude)
+        const longitude = Number(vendorData.longitude)
+        if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90) {
+            toast.error("Enter a valid latitude between -90 and 90")
+            return
+        }
+        if (!Number.isFinite(longitude) || longitude < -180 || longitude > 180) {
+            toast.error("Enter a valid longitude between -180 and 180")
+            return
+        }
+        setSavingVendor(true)
+        try {
+            await api.updateVendor(vendorId, {
+                name: vendorData.name,
+                email: vendorData.email,
+                phone_number: vendorData.phone_number,
+                address: vendorData.address,
+                latitude,
+                longitude,
+            })
+            const current = auth.getCurrentUser()
+            if (current) {
+                auth.setCurrentUser({ ...current, latitude, longitude })
+            }
+            toast.success("Vendor information updated successfully")
+        } catch (err) {
+            toast.error(err instanceof ApiError ? err.message : "Failed to update vendor")
+        } finally {
+            setSavingVendor(false)
+        }
+    }
+
+    function useSelectedLocation(address: string, latitude: number, longitude: number) {
+        setVendorData((current) => ({
+            ...current,
+            address,
+            latitude: String(latitude),
+            longitude: String(longitude),
+        }))
+    }
+
+    async function resolveAddressFromCoordinates() {
+        const latitude = Number(vendorData.latitude)
+        const longitude = Number(vendorData.longitude)
+        if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+            toast.error("Enter valid latitude and longitude values")
+            return
+        }
+        if (!window.google?.maps) {
+            toast.error("Google Maps is still loading. Please try again.")
+            return
+        }
+        setReverseGeocoding(true)
+        const geocoder = new window.google.maps.Geocoder()
+        geocoder.geocode({ location: { lat: latitude, lng: longitude } }, (results, status) => {
+            setReverseGeocoding(false)
+            if (status === "OK" && results?.[0]) {
+                setVendorData((current) => ({
+                    ...current,
+                    address: results[0].formatted_address,
+                }))
+            } else {
+                toast.error("No address was found for those coordinates")
+            }
+        })
     }
 
     const handlePasswordUpdate = (e: React.FormEvent) => {
@@ -86,7 +224,7 @@ function SettingsPage() {
             </div>
 
             <Tabs defaultValue="appearance" className="space-y-6">
-                <TabsList className="grid w-full grid-cols-3 lg:w-[400px]">
+                <TabsList className="grid w-full grid-cols-3 lg:w-100">
                     <TabsTrigger value="appearance" className="gap-2">
                         <PaletteIcon className="size-4" />
                         <span>Appearance</span>
@@ -158,31 +296,19 @@ function SettingsPage() {
                 <TabsContent value="profile">
                     <Card>
                         <CardHeader>
-                            <CardTitle>Edit Profile</CardTitle>
+                            <CardTitle>Account Information</CardTitle>
                             <CardDescription>
-                                Update your personal information and contact details.
+                                Update the personal details used to access this dashboard.
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
-                            <form onSubmit={handleProfileUpdate} className="space-y-6">
-                                {/* Avatar */}
-                                <div className="flex items-center gap-4">
-                                    <Avatar className="size-16">
-                                        <AvatarImage src="https://cdn.shadcnstudio.com/ss-assets/avatar/avatar-1.png" />
-                                        <AvatarFallback>JD</AvatarFallback>
-                                    </Avatar>
-                                    <div>
-                                        <Button type="button" variant="outline" size="sm">
-                                            Change Avatar
-                                        </Button>
-                                        <p className="text-muted-foreground text-xs mt-1">
-                                            PNG, JPG up to 2MB
-                                        </p>
-                                    </div>
+                            {profileLoading ? (
+                                <div className="text-muted-foreground flex items-center gap-2 py-8 text-sm">
+                                    <Loader2Icon className="size-4 animate-spin" />
+                                    Loading account information…
                                 </div>
-
-                                <Separator />
-
+                            ) : (
+                            <form onSubmit={handleProfileUpdate} className="space-y-6">
                                 <div className="grid gap-4 sm:grid-cols-2">
                                     <div className="space-y-2">
                                         <Label htmlFor="full_name">Full Name</Label>
@@ -218,22 +344,120 @@ function SettingsPage() {
                                             })}
                                         />
                                     </div>
+                                </div>
+
+                                <div className="flex justify-end">
+                                    <Button type="submit" disabled={savingProfile}>
+                                        {savingProfile ? "Saving…" : "Save Account"}
+                                    </Button>
+                                </div>
+                            </form>
+                            )}
+                        </CardContent>
+                    </Card>
+
+                    <Card className="mt-6">
+                        <CardHeader>
+                            <CardTitle>Vendor Information & Location</CardTitle>
+                            <CardDescription>
+                                Search for an address to fill its coordinates, or enter coordinates
+                                and resolve them to an address.
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <form onSubmit={handleVendorUpdate} className="space-y-6">
+                                <div className="grid gap-4 sm:grid-cols-2">
                                     <div className="space-y-2">
-                                        <Label htmlFor="address">Address</Label>
+                                        <Label htmlFor="vendor_name">Business Name</Label>
                                         <Input
-                                            id="address"
-                                            value={profileData.address}
-                                            onChange={(e) => setProfileData({
-                                                ...profileData,
-                                                address: e.target.value
-                                            })}
+                                            id="vendor_name"
+                                            required
+                                            value={vendorData.name}
+                                            onChange={(e) => setVendorData({ ...vendorData, name: e.target.value })}
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label htmlFor="vendor_email">Business Email</Label>
+                                        <Input
+                                            id="vendor_email"
+                                            type="email"
+                                            required
+                                            value={vendorData.email}
+                                            onChange={(e) => setVendorData({ ...vendorData, email: e.target.value })}
+                                        />
+                                    </div>
+                                    <div className="space-y-2 sm:col-span-2">
+                                        <Label htmlFor="vendor_phone">Business Phone</Label>
+                                        <Input
+                                            id="vendor_phone"
+                                            required
+                                            value={vendorData.phone_number}
+                                            onChange={(e) => setVendorData({ ...vendorData, phone_number: e.target.value })}
+                                        />
+                                    </div>
+                                    <div className="space-y-2 sm:col-span-2">
+                                        <Label htmlFor="vendor_address">Business Address</Label>
+                                        <AddressAutocomplete
+                                            id="vendor_address"
+                                            defaultValue={vendorData.address}
+                                            onChange={(address) => setVendorData((current) => ({ ...current, address }))}
+                                            onAddressSelect={useSelectedLocation}
+                                        />
+                                        <p className="text-muted-foreground text-xs">
+                                            Select a suggested address to automatically set latitude and longitude.
+                                        </p>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label htmlFor="vendor_latitude">Latitude</Label>
+                                        <Input
+                                            id="vendor_latitude"
+                                            type="number"
+                                            step="any"
+                                            required
+                                            value={vendorData.latitude}
+                                            onChange={(e) => setVendorData({ ...vendorData, latitude: e.target.value })}
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label htmlFor="vendor_longitude">Longitude</Label>
+                                        <Input
+                                            id="vendor_longitude"
+                                            type="number"
+                                            step="any"
+                                            required
+                                            value={vendorData.longitude}
+                                            onChange={(e) => setVendorData({ ...vendorData, longitude: e.target.value })}
                                         />
                                     </div>
                                 </div>
 
+                                <div className="flex flex-wrap gap-2">
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        className="gap-2"
+                                        disabled={reverseGeocoding}
+                                        onClick={() => void resolveAddressFromCoordinates()}
+                                    >
+                                        {reverseGeocoding
+                                            ? <Loader2Icon className="size-4 animate-spin" />
+                                            : <MapPinIcon className="size-4" />}
+                                        Get Address from Coordinates
+                                    </Button>
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        className="gap-2"
+                                        onClick={() => setMapOpen(true)}
+                                    >
+                                        <MapPinIcon className="size-4" />
+                                        Choose on Map
+                                    </Button>
+                                </div>
+
                                 <div className="flex justify-end">
-                                    <Button type="submit">
-                                        Save Changes
+                                    <Button type="submit" disabled={savingVendor || !vendorId}>
+                                        {savingVendor ? "Saving…" : "Save Vendor Information"}
                                     </Button>
                                 </div>
                             </form>
@@ -308,6 +532,14 @@ function SettingsPage() {
                     </Card>
                 </TabsContent>
             </Tabs>
+
+            <MapPickerModal
+                open={mapOpen}
+                onOpenChange={setMapOpen}
+                initialLat={Number(vendorData.latitude) || undefined}
+                initialLng={Number(vendorData.longitude) || undefined}
+                onConfirm={useSelectedLocation}
+            />
         </div>
     )
 }

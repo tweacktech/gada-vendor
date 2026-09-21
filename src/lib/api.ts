@@ -108,6 +108,26 @@ export interface CreateVendorPayload {
   email: string;
 }
 
+export interface VendorAdminAccount {
+  id: number;
+  full_name: string;
+  email: string;
+  phone?: string | null;
+  vendor_id?: number;
+  tenant_vendor_id?: number;
+  account_type?: string;
+  vendor?: Vendor | null;
+}
+
+export interface UpdateVendorPayload {
+  name: string;
+  address: string;
+  phone_number: string;
+  email: string;
+  latitude: number;
+  longitude: number;
+}
+
 export interface GetOrdersParams {
     page?: number;
     limit?: number;
@@ -613,6 +633,34 @@ export const api = {
   },
 
   // ── Vendors ────────────────────────────────
+
+  /** Fetch the logged-in vendor administrator and their vendor profile. */
+  async getVendorAccount(): Promise<VendorAdminAccount> {
+    const res = await client.get<ApiResponse<VendorAdminAccount>>(
+      "/vendor_admin/account"
+    );
+    return res.data.data;
+  },
+
+  /** Update the logged-in vendor administrator's personal details. */
+  async updateVendorAccount(
+    data: Pick<VendorAdminAccount, "full_name" | "email" | "phone">
+  ): Promise<VendorAdminAccount> {
+    const res = await client.patch<ApiResponse<VendorAdminAccount>>(
+      "/vendor_admin/account",
+      data
+    );
+    return res.data.data;
+  },
+
+  /** Update the vendor business and its dispatch coordinates. */
+  async updateVendor(id: string, data: UpdateVendorPayload): Promise<Vendor> {
+    const res = await client.patch<ApiResponse<Vendor>>(
+      `/vendor_admin/vendors/${id}`,
+      data
+    );
+    return res.data.data;
+  },
 
   /** Create a new vendor. */
   async createVendor(data: CreateVendorPayload): Promise<Vendor> {
