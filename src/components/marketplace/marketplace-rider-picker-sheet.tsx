@@ -26,7 +26,8 @@ import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 
 interface Props {
-    orderId: string
+    orderId?: string
+    orderIds?: string[]
     orderNumber: string
     riders: Rider[]
     loadingRiders: boolean
@@ -50,6 +51,7 @@ function getRiderDisplayName(rider: Rider): string {
 
 export function MarketplaceRiderPickerSheet({
     orderId,
+    orderIds,
     orderNumber,
     riders,
     loadingRiders,
@@ -94,7 +96,14 @@ export function MarketplaceRiderPickerSheet({
         setAssigningId(riderId)
         setError(null)
         try {
-            await api.assignRiderToMarketplaceOrder(orderId, riderId)
+            const targetOrderIds = orderIds ?? (orderId ? [orderId] : [])
+            if (targetOrderIds.length > 1) {
+                await api.batchAssignRiderToMarketplaceOrders(targetOrderIds, riderId)
+            } else if (targetOrderIds[0]) {
+                await api.assignRiderToMarketplaceOrder(targetOrderIds[0], riderId)
+            } else {
+                throw new Error("No marketplace orders were selected.")
+            }
             setAssignedId(riderId)
             setTimeout(onDone, 800)
         } catch (err) {
@@ -110,7 +119,7 @@ export function MarketplaceRiderPickerSheet({
                 <SheetHeader className="border-b px-6 py-5">
                     <SheetTitle>Assign a Rider</SheetTitle>
                     <SheetDescription>
-                        Select a rider to deliver order{" "}
+                        Select a rider to deliver{" "}
                         <span className="text-foreground font-mono">{orderNumber}</span>.
                     </SheetDescription>
                 </SheetHeader>

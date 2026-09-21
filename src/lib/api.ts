@@ -722,12 +722,23 @@ async getDashboardMetrics(params?: {
 
   /** Vendor manually assigns a rider to deliver a marketplace order. */
   async assignRiderToMarketplaceOrder(id: string, riderId: string): Promise<MarketplaceOrder> {
+    const orderPayload = /^\d+$/.test(id) ? Number(id) : id;
     const riderPayload = /^\d+$/.test(riderId) ? Number(riderId) : riderId;
     const res = await client.patch<ApiResponse<MarketplaceOrder>>(
-      `/vendor_admin/marketplace-orders/${id}/assign-rider`,
-      { rider_id: riderPayload }
+      "/vendor_admin/orders/agent-assign-rider",
+      { order_id: orderPayload, rider_id: riderPayload }
     );
     return res.data.data;
+  },
+
+  /** Assign one rider to multiple marketplace orders. */
+  async batchAssignRiderToMarketplaceOrders(orderIds: string[], riderId: string): Promise<void> {
+    const orderPayload = orderIds.map((id) => (/^\d+$/.test(id) ? Number(id) : id));
+    const riderPayload = /^\d+$/.test(riderId) ? Number(riderId) : riderId;
+    await client.patch(
+      "/vendor_admin/orders/agent-batch-assign-rider",
+      { order_ids: orderPayload, rider_id: riderPayload }
+    );
   },
 
   // ── Notifications (vendor admin inbox) ─────

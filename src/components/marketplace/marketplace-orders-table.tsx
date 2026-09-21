@@ -21,11 +21,13 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select"
-import { EyeIcon, RefreshCwIcon, XCircleIcon } from "lucide-react"
+import { EyeIcon, RefreshCwIcon, UserRoundPlusIcon, XCircleIcon } from "lucide-react"
 
 import { useMarketplaceOrders } from "@/hooks/useMarketplaceOrders"
 import { api, ApiError } from "@/lib/api"
 import { EDITABLE_MARKETPLACE_ORDER_STATUSES, type MarketplaceOrder } from "@/types/marketplace"
+import type { Rider } from "@/types/logistics"
+import { MarketplaceRiderPickerSheet } from "@/components/marketplace/marketplace-rider-picker-sheet"
 
 const statusConfig: Record<string, { label: string; className: string }> = {
     pending: { label: "Pending", className: "bg-yellow-500/10 text-yellow-600 dark:text-yellow-400" },
@@ -44,7 +46,11 @@ function formatCurrency(amount: number | string | null | undefined) {
     return new Intl.NumberFormat("en-NG", { style: "currency", currency: "NGN" }).format(value)
 }
 
-const COLUMN_COUNT = 9
+const COLUMN_COUNT = 10
+
+function canAssignRider(order: MarketplaceOrder) {
+    return !order.rider && order.status !== "completed" && order.status !== "cancelled"
+}
 
 interface Props {
     tab?: "pending" | "ongoing" | "completed"
@@ -53,6 +59,48 @@ interface Props {
 export function MarketplaceOrdersTable({ tab }: Props) {
     const { orders, isLoading, error, refetch } = useMarketplaceOrders({ tab })
     const [updatingId, setUpdatingId] = useState<string | null>(null)
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+    const [riderPickerOpen, setRiderPickerOpen] = useState(false)
+    const [availableRiders, setAvailableRiders] = useState<Rider[]>([])
+    const [loadingRiders, setLoadingRiders] = useState(false)
+
+    const assignableIds = orders.filter(canAssignRider).map((order) => order.id)
+    const allAssignableSelected =
+        assignableIds.length > 0 && assignableIds.every((id) => selectedIds.has(id))
+
+    function toggleOrder(orderId: string) {
+        setSelectedIds((current) => {
+            const next = new Set(current)
+            if (next.has(orderId)) next.delete(orderId)
+            else next.add(orderId)
+            return next
+        })
+    }
+
+    function toggleAllAssignable() {
+        setSelectedIds(allAssignableSelected ? new Set() : new Set(assignableIds))
+    }
+
+    async function openBatchRiderPicker() {
+        if (selectedIds.size < 2) return
+        setRiderPickerOpen(true)
+        setLoadingRiders(true)
+        try {
+            setAvailableRiders(await api.getAvailableRiders())
+        } catch (err) {
+            setAvailableRiders([])
+            toast.error(err instanceof ApiError ? err.message : "Failed to load available riders")
+        } finally {
+            setLoadingRiders(false)
+        }
+    }
+
+    function handleBatchAssigned() {
+        setRiderPickerOpen(false)
+        setSelectedIds(new Set())
+        toast.success("Rider assigned to selected marketplace orders")
+        refetch()
+    }
 
     async function handleStatusChange(order: MarketplaceOrder, status: string) {
         setUpdatingId(order.id)
@@ -76,10 +124,45 @@ export function MarketplaceOrdersTable({ tab }: Props) {
     }
 
     return (
+        <>
         <div className="rounded-md border">
+            {selectedIds.size > 0 && (
+                <div className="border-primary/30 bg-primary/5 flex flex-wrap items-center gap-3 border-b px-4 py-2.5 text-sm">
+                    <span className="flex-1 font-medium">
+                        {selectedIds.size} order{selectedIds.size === 1 ? "" : "s"} selected
+                        {selectedIds.size < 2 && (
+                            <span className="text-muted-foreground ml-2 text-xs font-normal">
+                                Select at least 2 for batch assignment
+                            </span>
+                        )}
+                    </span>
+                    <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())}>
+                        Clear
+                    </Button>
+                    <Button
+                        size="sm"
+                        className="gap-1.5"
+                        disabled={selectedIds.size < 2}
+                        onClick={() => void openBatchRiderPicker()}
+                    >
+                        <UserRoundPlusIcon className="size-4" />
+                        Assign Rider
+                    </Button>
+                </div>
+            )}
             <Table>
                 <TableHeader>
                     <TableRow>
+                        <TableHead className="w-10">
+                            <input
+                                type="checkbox"
+                                className="size-4 cursor-pointer accent-primary disabled:cursor-not-allowed disabled:opacity-40"
+                                checked={allAssignableSelected}
+                                disabled={assignableIds.length === 0}
+                                onChange={toggleAllAssignable}
+                                aria-label="Select all unassigned marketplace orders"
+                            />
+                        </TableHead>
                         <TableHead>Order</TableHead>
                         <TableHead>Items</TableHead>
                         <TableHead>Total</TableHead>
@@ -95,6 +178,7 @@ export function MarketplaceOrdersTable({ tab }: Props) {
                     {isLoading ? (
                         Array.from({ length: 5 }).map((_, i) => (
                             <TableRow key={i}>
+                                <TableCell><Skeleton className="size-4" /></TableCell>
                                 <TableCell><Skeleton className="h-4 w-28" /></TableCell>
                                 <TableCell><Skeleton className="h-4 w-16" /></TableCell>
                                 <TableCell><Skeleton className="h-4 w-20" /></TableCell>
@@ -130,6 +214,17 @@ export function MarketplaceOrdersTable({ tab }: Props) {
                             const isFinal = order.status === "completed" || order.status === "cancelled"
                             return (
                                 <TableRow key={order.id}>
+                                    <TableCell>
+                                        {canAssignRider(order) && (
+                                            <input
+                                                type="checkbox"
+                                                className="size-4 cursor-pointer accent-primary"
+                                                checked={selectedIds.has(order.id)}
+                                                onChange={() => toggleOrder(order.id)}
+                                                aria-label={`Select order ${order.order_number}`}
+                                            />
+                                        )}
+                                    </TableCell>
                                     <TableCell className="font-medium">{order.order_number}</TableCell>
                                     <TableCell className="text-muted-foreground text-sm">
                                         {order.items?.length ?? 0} item{(order.items?.length ?? 0) === 1 ? "" : "s"}
@@ -208,5 +303,17 @@ export function MarketplaceOrdersTable({ tab }: Props) {
                 </TableBody>
             </Table>
         </div>
+        {riderPickerOpen && (
+            <MarketplaceRiderPickerSheet
+                orderIds={[...selectedIds]}
+                orderNumber={`${selectedIds.size} marketplace orders`}
+                riders={availableRiders}
+                loadingRiders={loadingRiders}
+                open={riderPickerOpen}
+                onOpenChange={setRiderPickerOpen}
+                onDone={handleBatchAssigned}
+            />
+        )}
+        </>
     )
 }
