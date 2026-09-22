@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { api } from "@/lib/api";
-import { useMarketplaceOrderRefresh } from "@/hooks/useMarketplaceOrderRefresh";
+import { useMarketplaceLiveSync } from "@/hooks/useMarketplaceLiveSync";
 import type { MarketplaceOrder } from "@/types/marketplace";
 
 export interface MarketplaceOrderCounts {
@@ -48,15 +48,15 @@ export function useMarketplaceOrderCounts() {
   const [counts, setCounts] = useState<MarketplaceOrderCounts>(EMPTY);
   const [isLoading, setIsLoading] = useState(true);
 
-  const refetch = useCallback(async () => {
-    setIsLoading(true);
+  const refetch = useCallback(async (opts?: { silent?: boolean }) => {
+    if (!opts?.silent) setIsLoading(true);
     try {
       const response = await api.getMarketplaceOrders({ page: 1, limit: 200 });
       setCounts(countByStatus(response.data ?? []));
     } catch {
-      setCounts(EMPTY);
+      if (!opts?.silent) setCounts(EMPTY);
     } finally {
-      setIsLoading(false);
+      if (!opts?.silent) setIsLoading(false);
     }
   }, []);
 
@@ -64,7 +64,9 @@ export function useMarketplaceOrderCounts() {
     void refetch();
   }, [refetch]);
 
-  useMarketplaceOrderRefresh(refetch);
+  useMarketplaceLiveSync(() => {
+    void refetch({ silent: true });
+  });
 
   return { counts, isLoading, refetch };
 }

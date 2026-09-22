@@ -53,6 +53,15 @@ export interface MarketplaceOrderTimeline {
   other_events: Array<{ label: string; reached_at: string | null; [key: string]: unknown }>;
 }
 
+export interface MarketplaceOrderTimelineResponse {
+  order_id: number | string;
+  order_number: string;
+  pin?: string | null;
+  current_status: MarketplaceOrderStatus | string;
+  steps: MarketplaceOrderTimelineStep[];
+  other_events?: Array<{ label: string; reached_at: string | null; [key: string]: unknown }>;
+}
+
 export interface MarketplaceOrderCustomer {
   id: number;
   full_name: string;
@@ -118,6 +127,7 @@ export interface MarketplaceOrder {
     paid: boolean;
   };
   timeline?: MarketplaceOrderTimeline;
+  pin?: string | null;
   subtotal?: number;
   delivery_fee?: number;
   total?: number;

@@ -23,6 +23,7 @@ import type { Rider } from "@/types/logistics"
 import {
     EDITABLE_MARKETPLACE_ORDER_STATUSES,
     type MarketplaceOrder,
+    type MarketplaceOrderTimelineResponse,
 } from "@/types/marketplace"
 import { MarketplaceRiderPickerSheet } from "@/components/marketplace/marketplace-rider-picker-sheet"
 import { buildNearbyRidersParams, extractGeoPoint } from "@/lib/vendor-location"
@@ -107,10 +108,16 @@ function SectionSkeleton() {
     )
 }
 
-// ── Order timeline (from API: order.timeline.steps) ────────────────────────
+// ── Order timeline (GET /marketplace/orders/{order}/timeline) ─────────────
 
-function OrderTimeline({ order }: { order: MarketplaceOrder }) {
-    const steps = order.timeline?.steps
+function OrderTimeline({
+    timeline,
+    cancelledAt,
+}: {
+    timeline: MarketplaceOrderTimelineResponse | null
+    cancelledAt?: string | null
+}) {
+    const steps = timeline?.steps
     if (!steps?.length) {
         return <p className="text-muted-foreground text-sm">No timeline data available.</p>
     }
@@ -152,11 +159,11 @@ function OrderTimeline({ order }: { order: MarketplaceOrder }) {
                 )
             })}
 
-            {order.status === "cancelled" && (
+            {timeline?.current_status === "cancelled" && (
                 <div className="border-destructive/30 bg-destructive/10 text-destructive mt-1 flex items-center gap-2 rounded-lg border px-3 py-2 text-sm">
                     <AlertCircleIcon className="size-4 shrink-0" />
                     Order cancelled
-                    {order.cancelled_at && ` · ${formatDate(order.cancelled_at)}`}
+                    {cancelledAt && ` · ${formatDate(cancelledAt)}`}
                 </div>
             )}
         </div>
@@ -259,7 +266,7 @@ function AgentCard({ order, onReassign }: { order: MarketplaceOrder; onReassign:
 
 function MarketplaceOrderDetailPage() {
     const { orderId } = Route.useParams()
-    const { order, isLoading, error, refetch } = useMarketplaceOrder(orderId)
+    const { order, timeline, isLoading, error, refetch } = useMarketplaceOrder(orderId)
     usePageTitle(order ? `Order ${order.order_number}` : "Marketplace Order")
 
     const [riderPickerOpen, setRiderPickerOpen] = useState(false)
@@ -387,6 +394,11 @@ function MarketplaceOrderDetailPage() {
                     <div>
                         <h1 className="text-2xl font-semibold">Order Details</h1>
                         <p className="text-muted-foreground font-mono text-sm">{order.order_number}</p>
+                        {(timeline?.pin ?? order.pin) && (
+                            <p className="text-muted-foreground text-xs">
+                                Delivery PIN <span className="text-foreground font-mono font-medium">{timeline?.pin ?? order.pin}</span>
+                            </p>
+                        )}
                     </div>
                 </div>
 
@@ -551,7 +563,7 @@ function MarketplaceOrderDetailPage() {
                             </CardTitle>
                         </CardHeader>
                         <CardContent>
-                            <OrderTimeline order={order} />
+                            <OrderTimeline timeline={timeline} cancelledAt={order.cancelled_at} />
                         </CardContent>
                     </Card>
 

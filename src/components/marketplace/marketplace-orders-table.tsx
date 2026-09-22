@@ -25,6 +25,7 @@ import { EyeIcon, RefreshCwIcon, UserRoundPlusIcon, XCircleIcon } from "lucide-r
 
 import { useMarketplaceOrders } from "@/hooks/useMarketplaceOrders"
 import { api, ApiError } from "@/lib/api"
+import { emitMarketplaceOrderRefresh } from "@/lib/marketplace-realtime"
 import { EDITABLE_MARKETPLACE_ORDER_STATUSES, type MarketplaceOrder } from "@/types/marketplace"
 import type { Rider } from "@/types/logistics"
 import { MarketplaceRiderPickerSheet } from "@/components/marketplace/marketplace-rider-picker-sheet"
@@ -46,7 +47,7 @@ function formatCurrency(amount: number | string | null | undefined) {
     return new Intl.NumberFormat("en-NG", { style: "currency", currency: "NGN" }).format(value)
 }
 
-const COLUMN_COUNT = 10
+const COLUMN_COUNT = 9
 
 function canAssignRider(order: MarketplaceOrder) {
     return !order.rider && order.status !== "completed" && order.status !== "cancelled"
@@ -57,7 +58,7 @@ interface Props {
 }
 
 export function MarketplaceOrdersTable({ tab }: Props) {
-    const { orders, isLoading, error, refetch } = useMarketplaceOrders({ tab })
+    const { orders, isLoading, error, refetch, applyStatus } = useMarketplaceOrders({ tab })
     const [updatingId, setUpdatingId] = useState<string | null>(null)
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
     const [riderPickerOpen, setRiderPickerOpen] = useState(false)
@@ -99,18 +100,31 @@ export function MarketplaceOrdersTable({ tab }: Props) {
         setRiderPickerOpen(false)
         setSelectedIds(new Set())
         toast.success("Rider assigned to selected marketplace orders")
-        refetch()
+        void refetch({ silent: true })
     }
 
     async function handleStatusChange(order: MarketplaceOrder, status: string) {
         setUpdatingId(order.id)
+        applyStatus(order.id, status)
         try {
             await api.updateMarketplaceOrderStatus(order.id, status)
+            emitMarketplaceOrderRefresh({
+                marketplace_order_id: Number(order.id),
+                order_number: order.order_number,
+                status: status as MarketplaceOrder["status"],
+                previous_status: order.status,
+                agent_status: order.agent_status ?? null,
+                previous_agent_status: order.agent_status ?? null,
+                vendor_id: Number(order.vendor?.id ?? 0),
+                agent_id: order.agent?.id ?? null,
+                rider_id: order.rider?.id ?? null,
+                updated_at: new Date().toISOString(),
+            })
             toast.success(`Order ${order.order_number} updated`)
-            refetch()
         } catch (err) {
             const msg = err instanceof ApiError ? err.message : "Failed to update order status"
             toast.error(msg)
+            void refetch({ silent: true })
         } finally {
             setUpdatingId(null)
         }
@@ -125,7 +139,7 @@ export function MarketplaceOrdersTable({ tab }: Props) {
 
     return (
         <>
-        <div className="rounded-md border">
+        <div className="overflow-x-auto rounded-md border">
             {selectedIds.size > 0 && (
                 <div className="border-primary/30 bg-primary/5 flex flex-wrap items-center gap-3 border-b px-4 py-2.5 text-sm">
                     <span className="flex-1 font-medium">
@@ -169,7 +183,6 @@ export function MarketplaceOrdersTable({ tab }: Props) {
                         <TableHead>Status</TableHead>
                         <TableHead>Agent</TableHead>
                         <TableHead>Placed</TableHead>
-                        <TableHead className="text-right">Update</TableHead>
                         <TableHead className="text-right">Reject</TableHead>
                         <TableHead className="text-right">Details</TableHead>
                     </TableRow>
@@ -182,10 +195,9 @@ export function MarketplaceOrdersTable({ tab }: Props) {
                                 <TableCell><Skeleton className="h-4 w-28" /></TableCell>
                                 <TableCell><Skeleton className="h-4 w-16" /></TableCell>
                                 <TableCell><Skeleton className="h-4 w-20" /></TableCell>
-                                <TableCell><Skeleton className="h-5 w-24 rounded-full" /></TableCell>
+                                <TableCell><Skeleton className="h-8 w-32" /></TableCell>
                                 <TableCell><Skeleton className="h-4 w-20" /></TableCell>
                                 <TableCell><Skeleton className="h-4 w-24" /></TableCell>
-                                <TableCell><Skeleton className="h-8 w-32 ml-auto" /></TableCell>
                                 <TableCell><Skeleton className="h-8 w-8 ml-auto" /></TableCell>
                                 <TableCell><Skeleton className="h-8 w-8 ml-auto" /></TableCell>
                             </TableRow>
@@ -231,9 +243,33 @@ export function MarketplaceOrdersTable({ tab }: Props) {
                                     </TableCell>
                                     <TableCell className="text-sm">{formatCurrency(order.total ?? order.pricing?.total)}</TableCell>
                                     <TableCell>
-                                        <Badge className={status.className} variant="outline">
-                                            {status.label}
-                                        </Badge>
+                                        {isFinal ? (
+                                            <Badge className={status.className} variant="outline">
+                                                {status.label}
+                                            </Badge>
+                                        ) : (
+                                            <Select
+                                                disabled={updatingId === order.id}
+                                                value={order.status}
+                                                onValueChange={(value) => handleStatusChange(order, value)}
+                                            >
+                                                <SelectTrigger className="w-40" size="sm">
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value={order.status}>
+                                                        {status.label}
+                                                    </SelectItem>
+                                                    {EDITABLE_MARKETPLACE_ORDER_STATUSES
+                                                        .filter((s) => s !== order.status)
+                                                        .map((s) => (
+                                                            <SelectItem key={s} value={s}>
+                                                                {statusConfig[s]?.label ?? s}
+                                                            </SelectItem>
+                                                        ))}
+                                                </SelectContent>
+                                            </Select>
+                                        )}
                                     </TableCell>
                                     <TableCell className="text-muted-foreground text-sm">
                                         {order.agent?.full_name ?? order.agent?.name ?? (order.agent_status
@@ -242,29 +278,6 @@ export function MarketplaceOrdersTable({ tab }: Props) {
                                     </TableCell>
                                     <TableCell className="text-muted-foreground whitespace-nowrap text-sm">
                                         {format(new Date(order.created_at), "MMM d, HH:mm")}
-                                    </TableCell>
-                                    <TableCell className="text-right">
-                                        <Select
-                                            disabled={isFinal || updatingId === order.id}
-                                            value={order.status}
-                                            onValueChange={(value) => handleStatusChange(order, value)}
-                                        >
-                                            <SelectTrigger className="ml-auto w-40" size="sm">
-                                                <SelectValue />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value={order.status} disabled>
-                                                    {status.label}
-                                                </SelectItem>
-                                                {EDITABLE_MARKETPLACE_ORDER_STATUSES
-                                                    .filter((s) => s !== order.status)
-                                                    .map((s) => (
-                                                        <SelectItem key={s} value={s}>
-                                                            {statusConfig[s]?.label ?? s}
-                                                        </SelectItem>
-                                                    ))}
-                                            </SelectContent>
-                                        </Select>
                                     </TableCell>
                                     <TableCell className="text-right">
                                         {!isFinal && (

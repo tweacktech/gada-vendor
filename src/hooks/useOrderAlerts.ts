@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { auth } from "@/lib/auth";
 import { api } from "@/lib/api";
 import { getEchoClient } from "@/lib/echo";
-import { emitMarketplaceOrderRefresh } from "@/lib/marketplace-realtime";
+import { emitMarketplaceOrderRefresh, normalizeMarketplaceStatusPayload } from "@/lib/marketplace-realtime";
 import type { MarketplaceOrderStatusChangedPayload } from "@/types/marketplace";
 import type { VendorNotification } from "@/types/notifications";
 
@@ -184,7 +184,7 @@ export function useOrderAlertsInternal(): OrderAlertsState {
     const channel = echo.private(channelName);
 
     const onStatusEvent = (payload: MarketplaceOrderStatusChangedPayload) => {
-      emitMarketplaceOrderRefresh();
+      emitMarketplaceOrderRefresh(normalizeMarketplaceStatusPayload(payload) ?? payload);
       const { title, description } = describeLiveEvent(payload);
       playSound();
       toast(title, { description });

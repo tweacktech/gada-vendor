@@ -3,6 +3,8 @@ import type { AxiosInstance, AxiosResponse } from "axios";
 import type { Order, Rider, Vendor, DashboardMetrics } from "@/types/logistics";
 import type {
   MarketplaceOrder,
+  MarketplaceOrderTimelineResponse,
+  MarketplaceOrderTimelineStep,
   MarketplaceCategory,
   MarketplaceProduct,
   MarketplaceAgent,
@@ -264,6 +266,54 @@ function normalizeVendor(raw: Record<string, unknown>): Vendor {
 function currentVendorIdFromAuth(): string | number | null {
   const user = auth.getCurrentUser();
   return user?.vendor_id ?? user?.tenant_vendor_id ?? null;
+}
+
+function isTimelineStep(value: unknown): value is MarketplaceOrderTimelineStep {
+  if (!value || typeof value !== "object") return false;
+  const step = value as Record<string, unknown>;
+  return typeof step.status === "string" || typeof step.label === "string";
+}
+
+function normalizeMarketplaceTimeline(
+  fallbackId: string,
+  payload: Record<string, unknown>
+): MarketplaceOrderTimelineResponse {
+  const nested =
+    payload.timeline && typeof payload.timeline === "object"
+      ? (payload.timeline as Record<string, unknown>)
+      : payload;
+
+  let steps: MarketplaceOrderTimelineStep[] = [];
+  if (Array.isArray(nested.steps)) {
+    steps = nested.steps.filter(isTimelineStep).map((step) => ({
+      status: String(step.status ?? ""),
+      label: String(step.label ?? step.status ?? ""),
+      reached_at: step.reached_at != null ? String(step.reached_at) : null,
+      completed: Boolean(step.completed),
+    }));
+  } else if (Array.isArray(payload.steps)) {
+    steps = payload.steps.filter(isTimelineStep).map((step) => ({
+      status: String(step.status ?? ""),
+      label: String(step.label ?? step.status ?? ""),
+      reached_at: step.reached_at != null ? String(step.reached_at) : null,
+      completed: Boolean(step.completed),
+    }));
+  }
+
+  const otherEvents = Array.isArray(nested.other_events)
+    ? nested.other_events
+    : Array.isArray(payload.other_events)
+      ? payload.other_events
+      : [];
+
+  return {
+    order_id: (payload.order_id as number | string | undefined) ?? fallbackId,
+    order_number: String(payload.order_number ?? ""),
+    pin: payload.pin != null ? String(payload.pin) : null,
+    current_status: String(payload.current_status ?? payload.status ?? ""),
+    steps,
+    other_events: otherEvents as MarketplaceOrderTimelineResponse["other_events"],
+  };
 }
 
 // ─────────────────────────────────────────────
@@ -803,6 +853,18 @@ async getDashboardMetrics(params?: {
       `/vendor_admin/marketplace-orders/${id}`
     );
     return res.data.data;
+  },
+
+  /** Fetch marketplace order timeline, PIN, and current status. */
+  async getMarketplaceOrderTimeline(id: string): Promise<MarketplaceOrderTimelineResponse> {
+    const res = await client.get<
+      ApiResponse<Record<string, unknown>> | Record<string, unknown>
+    >(`/marketplace/orders/${id}/timeline`);
+    const payload =
+      res.data && typeof res.data === "object" && "data" in res.data
+        ? ((res.data as ApiResponse<Record<string, unknown>>).data ?? {})
+        : (res.data as Record<string, unknown>);
+    return normalizeMarketplaceTimeline(id, payload);
   },
 
   /** Move a marketplace order through preparing -> on_the_way -> completed (or cancel it). */
