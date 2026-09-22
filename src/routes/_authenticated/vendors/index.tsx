@@ -38,7 +38,7 @@ function VendorsPage() {
                 <div>
                     <h1 className="text-2xl font-semibold tracking-tight">Vendors</h1>
                     <p className="text-muted-foreground text-sm">
-                        Manage your restaurants, kitchens, and retail partners.
+                        Vendors linked under this admin account.
                     </p>
                 </div>
                 <Button onClick={() => setSheetOpen(true)} className="gap-2">
@@ -107,15 +107,17 @@ function VendorsPage() {
                                     // Data rows
                                     vendors?.map((vendor) => (
                                         <TableRow key={vendor.id}>
-                                            <TableCell className="font-medium">{vendor.name}</TableCell>
+                                            <TableCell className="font-medium">
+                                                {vendor.business_name ?? vendor.name}
+                                            </TableCell>
                                             <TableCell className="text-muted-foreground text-sm">
-                                                {vendor.email}
+                                                {vendor.email || "—"}
                                             </TableCell>
                                             <TableCell className="text-muted-foreground whitespace-nowrap text-sm">
-                                                {vendor.phone_number}
+                                                {vendor.phone_number || "—"}
                                             </TableCell>
                                             <TableCell className="text-muted-foreground truncate max-w-xs text-sm" title={vendor.address}>
-                                                {vendor.address}
+                                                {vendor.address || "—"}
                                             </TableCell>
                                         </TableRow>
                                     ))

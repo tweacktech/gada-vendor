@@ -49,17 +49,13 @@ export async function getVendorLocationForCurrentUser(): Promise<GeoPoint | null
   const fromUser = extractGeoPoint(user as unknown as Record<string, unknown>);
   if (fromUser) return fromUser;
 
-  const vendorId = user.vendor_id ?? user.tenant_vendor_id;
-  if (vendorId == null) return null;
-
   try {
-    const vendors = await api.getVendors();
-    const vendor = vendors.find((v) => String(v.id) === String(vendorId));
-    if (vendor) {
-      return extractGeoPoint(vendor as unknown as Record<string, unknown>);
+    const settings = await api.getVendorSettings();
+    if (settings.vendor) {
+      return extractGeoPoint(settings.vendor as unknown as Record<string, unknown>);
     }
   } catch {
-    // Vendor list unavailable — caller may pass a fallback (pickup / delivery).
+    // Settings unavailable — caller may pass a fallback (pickup / delivery).
   }
 
   return null;

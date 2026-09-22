@@ -20,7 +20,13 @@ function resolveAuthEndpoint(): string {
   if (explicit) return explicit;
 
   const apiBase = import.meta.env.VITE_API_BASE_URL ?? "";
-  return `${apiBase.replace(/\/api\/?$/, "")}/broadcasting/auth`;
+  if (!apiBase) return "/broadcasting/auth";
+
+  try {
+    return `${new URL(apiBase).origin}/broadcasting/auth`;
+  } catch {
+    return "/broadcasting/auth";
+  }
 }
 
 function parseForceTls(defaultForHosted: boolean): boolean {

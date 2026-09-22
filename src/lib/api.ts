@@ -115,6 +115,7 @@ export interface VendorSettingsResponse {
     phone_number: string | null;
   };
   vendor: {
+    id?: string | number;
     business_name: string;
     business_email: string;
     business_phone: string;
@@ -230,6 +231,39 @@ function handleAxiosError(error: unknown): never {
     throw new ApiError(message, status, code);
   }
   throw error;
+}
+
+function unwrapVendorList(payload: unknown): Record<string, unknown>[] {
+  if (Array.isArray(payload)) return payload;
+  if (payload && typeof payload === "object" && "data" in payload) {
+    const data = (payload as { data: unknown }).data;
+    if (Array.isArray(data)) return data;
+    if (data && typeof data === "object" && "data" in data) {
+      const nested = (data as { data: unknown }).data;
+      if (Array.isArray(nested)) return nested;
+    }
+  }
+  return [];
+}
+
+function normalizeVendor(raw: Record<string, unknown>): Vendor {
+  return {
+    id: String(raw.id ?? raw.vendor_id ?? ""),
+    name: String(raw.name ?? raw.business_name ?? ""),
+    business_name: raw.business_name != null ? String(raw.business_name) : undefined,
+    email: String(raw.email ?? raw.business_email ?? ""),
+    phone_number: String(raw.phone_number ?? raw.business_phone ?? ""),
+    address: String(raw.address ?? ""),
+    latitude: (raw.latitude as number | string | null | undefined) ?? null,
+    longitude: (raw.longitude as number | string | null | undefined) ?? null,
+    lat: (raw.lat as number | string | null | undefined) ?? null,
+    lng: (raw.lng as number | string | null | undefined) ?? null,
+  };
+}
+
+function currentVendorIdFromAuth(): string | number | null {
+  const user = auth.getCurrentUser();
+  return user?.vendor_id ?? user?.tenant_vendor_id ?? null;
 }
 
 // ─────────────────────────────────────────────
@@ -682,13 +716,28 @@ export const api = {
     return res.data.data;
   },
 
-  /** Fetch all vendors (restaurants). */
+  /** Fetch vendors belonging to this admin (`GET /vendor_admin/vendors/{vendor}/children`). */
+  async getVendorChildren(vendorId: string | number): Promise<Vendor[]> {
+    const res = await client.get<unknown>(
+      `/vendor_admin/vendors/${vendorId}/children`
+    );
+    return unwrapVendorList(res.data).map(normalizeVendor);
+  },
+
+  /** Fetch vendors under the logged-in admin's vendor. */
   async getVendors(): Promise<Vendor[]> {
     if (DEMO_MODE) {
       return Promise.resolve(DUMMY_VENDORS);
     }
-    const res = await client.get<ApiResponse<Vendor[]>>("/vendor_admin/vendors");
-    return res.data.data;
+    let vendorId = currentVendorIdFromAuth();
+    if (vendorId == null) {
+      const settings = await this.getVendorSettings();
+      vendorId = settings.vendor?.id ?? null;
+    }
+    if (vendorId == null) {
+      throw new ApiError("No vendor is linked to this account", 400);
+    }
+    return this.getVendorChildren(vendorId);
   },
 
   // ── Menu Items ─────────────────────────────
@@ -798,12 +847,41 @@ async getDashboardMetrics(params?: {
   // ── Notifications (vendor admin inbox) ─────
 
   async getNotifications(): Promise<VendorNotification[]> {
-    const res = await client.get<
-      ApiResponse<VendorNotification[]> | VendorNotification[]
-    >("/vendor_admin/notifications");
-    const payload = res.data;
+    const res = await client.get<unknown>("/vendor_admin/notifications");
+    const payload = res.data as
+      | VendorNotification[]
+      | { data?: VendorNotification[] | { data?: VendorNotification[] } };
+
     if (Array.isArray(payload)) return payload;
-    return payload.data ?? [];
+    const inner = payload?.data;
+    if (Array.isArray(inner)) return inner;
+    if (inner && typeof inner === "object" && Array.isArray(inner.data)) {
+      return inner.data;
+    }
+    return [];
+  },
+
+  async getNotificationUnreadCount(): Promise<number> {
+    const res = await client.get<unknown>("/vendor_admin/notifications/unread-count");
+    const payload = res.data as {
+      unread_count?: number;
+      count?: number;
+      data?: number | { unread_count?: number; count?: number };
+    };
+
+    if (typeof payload === "number") return payload;
+    if (typeof payload?.unread_count === "number") return payload.unread_count;
+    if (typeof payload?.count === "number") return payload.count;
+    if (typeof payload?.data === "number") return payload.data;
+    if (typeof payload?.data?.unread_count === "number") return payload.data.unread_count;
+    if (typeof payload?.data?.count === "number") return payload.data.count;
+    return 0;
+  },
+
+  async markAllNotificationsAsRead(): Promise<void> {
+    await client.post<ApiResponse<unknown>>(
+      "/vendor_admin/notifications/read-all"
+    );
   },
 
   async markNotificationAsRead(notificationId: string): Promise<void> {

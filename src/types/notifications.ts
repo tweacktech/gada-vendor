@@ -1,7 +1,10 @@
 export interface VendorNotification {
   id: string;
-  type: string;
-  data: Record<string, unknown>;
-  read_at: string | null;
+  type?: string;
+  data?: Record<string, unknown>;
+  read_at?: string | null;
   created_at: string;
+  title?: string;
+  message?: string;
+  body?: string;
 }
