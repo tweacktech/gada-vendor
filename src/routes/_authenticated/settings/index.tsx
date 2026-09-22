@@ -46,7 +46,6 @@ function SettingsPage() {
         email: "",
         phone: "",
     })
-    const [vendorId, setVendorId] = useState<string | null>(null)
     const [vendorData, setVendorData] = useState({
         name: "",
         email: "",
@@ -56,33 +55,28 @@ function SettingsPage() {
         longitude: "",
     })
     const [profileLoading, setProfileLoading] = useState(true)
-    const [savingProfile, setSavingProfile] = useState(false)
     const [savingVendor, setSavingVendor] = useState(false)
     const [reverseGeocoding, setReverseGeocoding] = useState(false)
     const [mapOpen, setMapOpen] = useState(false)
 
     useEffect(() => {
         let active = true
-        api.getVendorAccount()
-            .then((account) => {
+        api.getVendorSettings()
+            .then((settings) => {
                 if (!active) return
                 setProfileData({
-                    full_name: account.full_name ?? "",
-                    email: account.email ?? "",
-                    phone: account.phone ?? "",
+                    full_name: settings.account.full_name ?? "",
+                    email: settings.account.email ?? "",
+                    phone: settings.account.phone_number ?? "",
                 })
-                if (account.vendor) {
-                    const vendor = account.vendor
-                    setVendorId(String(vendor.id))
-                    setVendorData({
-                        name: vendor.name ?? vendor.business_name ?? "",
-                        email: vendor.email ?? "",
-                        phone_number: vendor.phone_number ?? "",
-                        address: vendor.address ?? "",
-                        latitude: String(vendor.latitude ?? vendor.lat ?? ""),
-                        longitude: String(vendor.longitude ?? vendor.lng ?? ""),
-                    })
-                }
+                setVendorData({
+                    name: settings.vendor.business_name ?? "",
+                    email: settings.vendor.business_email ?? "",
+                    phone_number: settings.vendor.business_phone ?? "",
+                    address: settings.vendor.address ?? "",
+                    latitude: String(settings.vendor.latitude ?? ""),
+                    longitude: String(settings.vendor.longitude ?? ""),
+                })
             })
             .catch((err) => {
                 toast.error(err instanceof ApiError ? err.message : "Could not load account details")
@@ -102,33 +96,8 @@ function SettingsPage() {
         confirm_password: "",
     })
 
-    const handleProfileUpdate = async (e: React.FormEvent) => {
-        e.preventDefault()
-        setSavingProfile(true)
-        try {
-            await api.updateVendorAccount(profileData)
-            const current = auth.getCurrentUser()
-            if (current) {
-                auth.setCurrentUser({
-                    ...current,
-                    full_name: profileData.full_name,
-                    email: profileData.email,
-                })
-            }
-            toast.success("Account updated successfully")
-        } catch (err) {
-            toast.error(err instanceof ApiError ? err.message : "Failed to update account")
-        } finally {
-            setSavingProfile(false)
-        }
-    }
-
     const handleVendorUpdate = async (e: React.FormEvent) => {
         e.preventDefault()
-        if (!vendorId) {
-            toast.error("No vendor is linked to this account")
-            return
-        }
         const latitude = Number(vendorData.latitude)
         const longitude = Number(vendorData.longitude)
         if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90) {
@@ -141,19 +110,28 @@ function SettingsPage() {
         }
         setSavingVendor(true)
         try {
-            await api.updateVendor(vendorId, {
-                name: vendorData.name,
-                email: vendorData.email,
-                phone_number: vendorData.phone_number,
+            await api.updateVendorAccount({
+                full_name: profileData.full_name,
+                email: profileData.email,
+                phone_number: profileData.phone,
+                business_name: vendorData.name,
+                business_email: vendorData.email,
+                business_phone: vendorData.phone_number,
                 address: vendorData.address,
                 latitude,
                 longitude,
             })
             const current = auth.getCurrentUser()
             if (current) {
-                auth.setCurrentUser({ ...current, latitude, longitude })
+                auth.setCurrentUser({
+                    ...current,
+                    full_name: profileData.full_name,
+                    email: profileData.email,
+                    latitude,
+                    longitude,
+                })
             }
-            toast.success("Vendor information updated successfully")
+            toast.success("Account information updated successfully")
         } catch (err) {
             toast.error(err instanceof ApiError ? err.message : "Failed to update vendor")
         } finally {
@@ -321,7 +299,7 @@ function SettingsPage() {
                                     Loading account information…
                                 </div>
                             ) : (
-                            <form onSubmit={handleProfileUpdate} className="space-y-6">
+                            <div className="space-y-6">
                                 <div className="grid gap-4 sm:grid-cols-2">
                                     <div className="space-y-2">
                                         <Label htmlFor="full_name">Full Name</Label>
@@ -359,12 +337,7 @@ function SettingsPage() {
                                     </div>
                                 </div>
 
-                                <div className="flex justify-end">
-                                    <Button type="submit" disabled={savingProfile}>
-                                        {savingProfile ? "Saving…" : "Save Account"}
-                                    </Button>
-                                </div>
-                            </form>
+                            </div>
                             )}
                         </CardContent>
                     </Card>
@@ -469,8 +442,8 @@ function SettingsPage() {
                                 </div>
 
                                 <div className="flex justify-end">
-                                    <Button type="submit" disabled={savingVendor || !vendorId}>
-                                        {savingVendor ? "Saving…" : "Save Vendor Information"}
+                                    <Button type="submit" disabled={savingVendor || profileLoading}>
+                                        {savingVendor ? "Saving…" : "Save All Changes"}
                                     </Button>
                                 </div>
                             </form>

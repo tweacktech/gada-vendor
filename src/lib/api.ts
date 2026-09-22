@@ -108,24 +108,40 @@ export interface CreateVendorPayload {
   email: string;
 }
 
-export interface VendorAdminAccount {
-  id: number;
-  full_name: string;
-  email: string;
-  phone?: string | null;
-  vendor_id?: number;
-  tenant_vendor_id?: number;
-  account_type?: string;
-  vendor?: Vendor | null;
+export interface VendorSettingsResponse {
+  account: {
+    full_name: string;
+    email: string;
+    phone_number: string | null;
+  };
+  vendor: {
+    business_name: string;
+    business_email: string;
+    business_phone: string;
+    address: string;
+    latitude: number | string | null;
+    longitude: number | string | null;
+  };
+  events: {
+    unread_count: number;
+    recent: unknown[];
+    broadcast?: {
+      channel: string;
+      event: string;
+    };
+  };
 }
 
-export interface UpdateVendorPayload {
-  name: string;
-  address: string;
-  phone_number: string;
+export interface UpdateVendorAccountPayload {
+  full_name: string;
   email: string;
-  latitude: number;
-  longitude: number;
+  phone_number: string;
+  business_name: string;
+  business_email: string;
+  business_phone: string;
+  address: string;
+  latitude?: number;
+  longitude?: number;
 }
 
 export interface GetOrdersParams {
@@ -634,32 +650,22 @@ export const api = {
 
   // ── Vendors ────────────────────────────────
 
-  /** Fetch the logged-in vendor administrator and their vendor profile. */
-  async getVendorAccount(): Promise<VendorAdminAccount> {
-    const res = await client.get<ApiResponse<VendorAdminAccount>>(
-      "/vendor_admin/account"
-    );
-    return res.data.data;
+  /** Fetch account, vendor profile, and notification settings. */
+  async getVendorSettings(): Promise<VendorSettingsResponse> {
+    const res = await client.get<
+      ApiResponse<VendorSettingsResponse> | VendorSettingsResponse
+    >("/vendor_admin/settings");
+    return "data" in res.data ? res.data.data : res.data;
   },
 
-  /** Update the logged-in vendor administrator's personal details. */
+  /** Update the logged-in vendor administrator and vendor business details. */
   async updateVendorAccount(
-    data: Pick<VendorAdminAccount, "full_name" | "email" | "phone">
-  ): Promise<VendorAdminAccount> {
-    const res = await client.patch<ApiResponse<VendorAdminAccount>>(
+    data: UpdateVendorAccountPayload
+  ): Promise<void> {
+    await client.patch(
       "/vendor_admin/account",
       data
     );
-    return res.data.data;
-  },
-
-  /** Update the vendor business and its dispatch coordinates. */
-  async updateVendor(id: string, data: UpdateVendorPayload): Promise<Vendor> {
-    const res = await client.patch<ApiResponse<Vendor>>(
-      `/vendor_admin/vendors/${id}`,
-      data
-    );
-    return res.data.data;
   },
 
   /** Create a new vendor. */
