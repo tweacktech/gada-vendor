@@ -12,6 +12,7 @@ import type {
   CreateMarketplaceCategoryPayload,
 } from "@/types/marketplace";
 import type { VendorNotification } from "@/types/notifications";
+import { normalizeMarketplaceOrder } from "@/lib/marketplace-order";
 import localMenuItems from "@/data/getitems.json";
 
 // ─────────────────────────────────────────────
@@ -839,9 +840,10 @@ async getDashboardMetrics(params?: {
       { params }
     );
     const payload = res.data;
+    const rows = Array.isArray(payload.data) ? payload.data : [];
     return {
-      data: payload.data ?? [],
-      total: payload.total ?? payload.data?.length ?? 0,
+      data: rows.map((order) => normalizeMarketplaceOrder(order)),
+      total: payload.total ?? rows.length,
       page: payload.page ?? params?.page ?? 1,
       limit: payload.limit ?? 20,
     };
@@ -849,10 +851,15 @@ async getDashboardMetrics(params?: {
 
   /** Fetch a single marketplace order with items and status history. */
   async getMarketplaceOrder(id: string): Promise<MarketplaceOrder> {
-    const res = await client.get<ApiResponse<MarketplaceOrder>>(
+    const res = await client.get<ApiResponse<MarketplaceOrder> | MarketplaceOrder>(
       `/vendor_admin/marketplace-orders/${id}`
     );
-    return res.data.data;
+    const payload = res.data;
+    const order =
+      payload && typeof payload === "object" && "data" in payload
+        ? payload.data
+        : payload;
+    return normalizeMarketplaceOrder(order);
   },
 
   /** Fetch marketplace order timeline, PIN, and current status. */
@@ -885,23 +892,27 @@ async getDashboardMetrics(params?: {
     return res.data.data;
   },
 
-  /** Vendor manually assigns a rider to deliver a marketplace order. */
+  /** Vendor assigns a rider to one marketplace order. */
   async assignRiderToMarketplaceOrder(id: string, riderId: string): Promise<MarketplaceOrder> {
     const orderPayload = /^\d+$/.test(id) ? Number(id) : id;
     const riderPayload = /^\d+$/.test(riderId) ? Number(riderId) : riderId;
     const res = await client.patch<ApiResponse<MarketplaceOrder>>(
-      "/vendor_admin/orders/agent-assign-rider",
-      { order_id: orderPayload, rider_id: riderPayload }
+      "/marketplace/orders/assign-rider",
+      {
+        order_id: orderPayload,
+        marketplace_order_id: orderPayload,
+        rider_id: riderPayload,
+      }
     );
     return res.data.data;
   },
 
-  /** Assign one rider to multiple marketplace orders. */
+  /** Vendor assigns one rider to multiple marketplace orders. */
   async batchAssignRiderToMarketplaceOrders(orderIds: string[], riderId: string): Promise<void> {
     const orderPayload = orderIds.map((id) => (/^\d+$/.test(id) ? Number(id) : id));
     const riderPayload = /^\d+$/.test(riderId) ? Number(riderId) : riderId;
     await client.patch(
-      "/vendor_admin/orders/agent-batch-assign-rider",
+      "/marketplace/orders/batch-assign-rider",
       { order_ids: orderPayload, rider_id: riderPayload }
     );
   },

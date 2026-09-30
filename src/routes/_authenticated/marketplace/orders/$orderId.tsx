@@ -19,14 +19,12 @@ import {
 import { useMarketplaceOrder } from "@/hooks/useMarketplaceOrder"
 import { usePageTitle } from "@/hooks/usePageTitle"
 import { api, ApiError } from "@/lib/api"
-import type { Rider } from "@/types/logistics"
 import {
     EDITABLE_MARKETPLACE_ORDER_STATUSES,
-    type MarketplaceOrder,
     type MarketplaceOrderTimelineResponse,
 } from "@/types/marketplace"
 import { MarketplaceRiderPickerSheet } from "@/components/marketplace/marketplace-rider-picker-sheet"
-import { buildNearbyRidersParams, extractGeoPoint } from "@/lib/vendor-location"
+import { extractGeoPoint } from "@/lib/vendor-location"
 import { MarketplaceAgentPickerSheet } from "@/components/marketplace/marketplace-agent-picker-sheet"
 
 import { Badge } from "@/components/ui/badge"
@@ -170,98 +168,6 @@ function OrderTimeline({
     )
 }
 
-// ── Rider card ───────────────────────────────────────────────────────────────
-
-function RiderCard({ order, onReassign }: { order: MarketplaceOrder; onReassign: () => void }) {
-    const rider = order.rider
-
-    return (
-        <Card>
-            <CardHeader className="flex flex-row items-center justify-between gap-2 pb-3">
-                <CardTitle className="flex items-center gap-2 text-sm font-semibold">
-                    <TruckIcon className="text-muted-foreground size-4" />
-                    Assigned Rider
-                </CardTitle>
-                <Button size="sm" variant="outline" onClick={onReassign} className="h-7 gap-1.5 text-xs">
-                    <UserRoundPlusIcon className="size-3.5" />
-                    {rider ? "Reassign" : "Assign Rider"}
-                </Button>
-            </CardHeader>
-            <CardContent>
-                {rider ? (
-                    <div className="flex items-center gap-4">
-                        <div className="bg-primary/10 text-primary flex size-12 shrink-0 items-center justify-center rounded-full text-lg font-semibold">
-                            {rider.name?.charAt(0).toUpperCase() ?? "?"}
-                        </div>
-                        <div className="flex min-w-0 flex-col gap-1">
-                            <span className="text-sm font-medium">{rider.name ?? "Unknown"}</span>
-                            {rider.phone && (
-                                <span className="text-muted-foreground flex items-center gap-1 text-xs">
-                                    <PhoneIcon className="size-3" />
-                                    {rider.phone}
-                                </span>
-                            )}
-                        </div>
-                    </div>
-                ) : (
-                    <div className="text-muted-foreground flex items-center gap-3">
-                        <div className="bg-muted flex size-10 items-center justify-center rounded-full">
-                            <UserRoundIcon className="size-5" />
-                        </div>
-                        <span className="text-sm">No rider assigned yet.</span>
-                    </div>
-                )}
-            </CardContent>
-        </Card>
-    )
-}
-
-// ── Agent card ───────────────────────────────────────────────────────────────
-
-function AgentCard({ order, onReassign }: { order: MarketplaceOrder; onReassign: () => void }) {
-    const agent = order.agent
-
-    return (
-        <Card>
-            <CardHeader className="flex flex-row items-center justify-between gap-2 pb-3">
-                <CardTitle className="flex items-center gap-2 text-sm font-semibold">
-                    <UserRoundIcon className="text-muted-foreground size-4" />
-                    Field Agent
-                </CardTitle>
-                <Button size="sm" variant="outline" onClick={onReassign} className="h-7 gap-1.5 text-xs">
-                    <UserRoundPlusIcon className="size-3.5" />
-                    {agent ? "Reassign" : "Assign Agent"}
-                </Button>
-            </CardHeader>
-            <CardContent>
-                {agent ? (
-                    <div className="flex items-center gap-4">
-                        <div className="bg-primary/10 text-primary flex size-12 shrink-0 items-center justify-center rounded-full text-lg font-semibold">
-                            {(agent.full_name ?? agent.name ?? "?").charAt(0).toUpperCase()}
-                        </div>
-                        <div className="flex min-w-0 flex-col gap-1">
-                            <span className="text-sm font-medium">{agent.full_name ?? agent.name}</span>
-                            {agent.phone && (
-                                <span className="text-muted-foreground flex items-center gap-1 text-xs">
-                                    <PhoneIcon className="size-3" />
-                                    {agent.phone}
-                                </span>
-                            )}
-                        </div>
-                    </div>
-                ) : (
-                    <div className="text-muted-foreground flex items-center gap-3">
-                        <div className="bg-muted flex size-10 items-center justify-center rounded-full">
-                            <UserRoundIcon className="size-5" />
-                        </div>
-                        <span className="text-sm">No agent assigned yet.</span>
-                    </div>
-                )}
-            </CardContent>
-        </Card>
-    )
-}
-
 // ── Page ─────────────────────────────────────────────────────────────────────
 
 function MarketplaceOrderDetailPage() {
@@ -271,44 +177,25 @@ function MarketplaceOrderDetailPage() {
 
     const [riderPickerOpen, setRiderPickerOpen] = useState(false)
     const [agentPickerOpen, setAgentPickerOpen] = useState(false)
-    const [availableRiders, setAvailableRiders] = useState<Rider[]>([])
-    const [ridersLoading, setRidersLoading] = useState(false)
     const [statusBusy, setStatusBusy] = useState(false)
     const [riderReferenceLat, setRiderReferenceLat] = useState<number | null>(null)
     const [riderReferenceLng, setRiderReferenceLng] = useState<number | null>(null)
 
-    async function openRiderPicker() {
-        setRiderPickerOpen(true)
-        setRidersLoading(true)
-        try {
-            const vendorPoint = order?.vendor
-                ? extractGeoPoint(order.vendor as unknown as Record<string, unknown>)
+    function openRiderPicker() {
+        const vendorPoint = order?.vendor
+            ? extractGeoPoint(order.vendor as unknown as Record<string, unknown>)
+            : null
+        const deliveryPoint =
+            order?.delivery?.latitude && order?.delivery?.longitude
+                ? {
+                      latitude: parseFloat(order.delivery.latitude),
+                      longitude: parseFloat(order.delivery.longitude),
+                  }
                 : null
-            const deliveryPoint =
-                order?.delivery?.latitude && order?.delivery?.longitude
-                    ? {
-                          latitude: parseFloat(order.delivery.latitude),
-                          longitude: parseFloat(order.delivery.longitude),
-                      }
-                    : null
-            const params = await buildNearbyRidersParams(vendorPoint ?? deliveryPoint)
-            if (params?.latitude != null && params.longitude != null) {
-                setRiderReferenceLat(params.latitude)
-                setRiderReferenceLng(params.longitude)
-            } else if (vendorPoint) {
-                setRiderReferenceLat(vendorPoint.latitude)
-                setRiderReferenceLng(vendorPoint.longitude)
-            } else if (deliveryPoint) {
-                setRiderReferenceLat(deliveryPoint.latitude)
-                setRiderReferenceLng(deliveryPoint.longitude)
-            }
-            const riders = await api.getAvailableRiders(params)
-            setAvailableRiders(riders)
-        } catch {
-            setAvailableRiders([])
-        } finally {
-            setRidersLoading(false)
-        }
+        const point = vendorPoint ?? deliveryPoint
+        setRiderReferenceLat(point?.latitude ?? null)
+        setRiderReferenceLng(point?.longitude ?? null)
+        setRiderPickerOpen(true)
     }
 
     function handleRiderAssigned() {
@@ -427,23 +314,46 @@ function MarketplaceOrderDetailPage() {
             <div className="grid gap-6 lg:grid-cols-3">
                 {/* Left column */}
                 <div className="flex flex-col gap-6 lg:col-span-2">
-                    {/* Vendor / Customer */}
                     <Card>
                         <CardHeader className="pb-3">
                             <CardTitle className="flex items-center gap-2 text-sm font-semibold">
-                                <StoreIcon className="text-muted-foreground size-4" />
-                                Vendor & Customer
+                                <UserRoundIcon className="text-muted-foreground size-4" />
+                                Customer, Agent & Rider
                             </CardTitle>
                         </CardHeader>
-                        <CardContent className="grid gap-4 sm:grid-cols-2">
-                            <InfoRow icon={StoreIcon} label="Vendor" value={order.vendor?.name ?? "—"} />
-                            <InfoRow icon={MapPinIcon} label="Vendor Address" value={order.vendor?.address ?? "—"} />
-                            <InfoRow icon={UserRoundIcon} label="Customer" value={order.customer?.full_name ?? "—"} />
-                            <InfoRow
-                                icon={PhoneIcon}
-                                label="Customer Phone"
-                                value={order.customer?.phone ?? "—"}
-                            />
+                        <CardContent className="grid gap-6 md:grid-cols-3">
+                            <div className="space-y-3">
+                                <p className="text-muted-foreground text-xs font-medium uppercase tracking-wide">Customer</p>
+                                <InfoRow icon={UserRoundIcon} label="Name" value={order.customer?.full_name ?? "—"} />
+                                <InfoRow icon={PhoneIcon} label="Phone" value={order.customer?.phone ?? "—"} />
+                                <InfoRow icon={StoreIcon} label="Vendor" value={order.vendor?.name ?? "—"} />
+                            </div>
+                            <div className="space-y-3">
+                                <div className="flex items-center justify-between gap-2">
+                                    <p className="text-muted-foreground text-xs font-medium uppercase tracking-wide">Agent</p>
+                                    <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs" onClick={() => setAgentPickerOpen(true)}>
+                                        <UserRoundPlusIcon className="size-3.5" />
+                                        {order.agent ? "Reassign" : "Assign"}
+                                    </Button>
+                                </div>
+                                <InfoRow
+                                    icon={UserRoundIcon}
+                                    label="Name"
+                                    value={order.agent?.full_name ?? order.agent?.name ?? "Not assigned"}
+                                />
+                                <InfoRow icon={PhoneIcon} label="Phone" value={order.agent?.phone ?? "—"} />
+                            </div>
+                            <div className="space-y-3">
+                                <div className="flex items-center justify-between gap-2">
+                                    <p className="text-muted-foreground text-xs font-medium uppercase tracking-wide">Rider</p>
+                                    <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs" onClick={openRiderPicker}>
+                                        <UserRoundPlusIcon className="size-3.5" />
+                                        {order.rider ? "Reassign" : "Assign"}
+                                    </Button>
+                                </div>
+                                <InfoRow icon={TruckIcon} label="Name" value={order.rider?.name ?? "Not assigned"} />
+                                <InfoRow icon={PhoneIcon} label="Phone" value={order.rider?.phone ?? "—"} />
+                            </div>
                         </CardContent>
                     </Card>
 
@@ -461,7 +371,13 @@ function MarketplaceOrderDetailPage() {
                                 label="Delivery Address"
                                 value={order.delivery?.address ?? order.delivery_address ?? "—"}
                             />
-                            <InfoRow icon={TruckIcon} label="Assigned Rider" value={order.rider?.name ?? "No rider assigned yet"} />
+                            <div className="flex flex-wrap items-center justify-between gap-3">
+                                <InfoRow icon={TruckIcon} label="Assigned Rider" value={order.rider?.name ?? "No rider assigned yet"} />
+                                <Button size="sm" variant="outline" onClick={openRiderPicker} className="gap-1.5">
+                                    <UserRoundPlusIcon className="size-3.5" />
+                                    {order.rider ? "Reassign rider" : "Assign rider"}
+                                </Button>
+                            </div>
                         </CardContent>
                     </Card>
 
@@ -567,36 +483,28 @@ function MarketplaceOrderDetailPage() {
                         </CardContent>
                     </Card>
 
-                    <AgentCard order={order} onReassign={() => setAgentPickerOpen(true)} />
-                    <RiderCard order={order} onReassign={openRiderPicker} />
                 </div>
             </div>
 
             {/* Rider picker */}
-            {riderPickerOpen && (
-                <MarketplaceRiderPickerSheet
-                    orderId={order.id}
-                    orderNumber={order.order_number}
-                    riders={availableRiders}
-                    loadingRiders={ridersLoading}
-                    referenceLat={riderReferenceLat}
-                    referenceLng={riderReferenceLng}
-                    open={riderPickerOpen}
-                    onOpenChange={setRiderPickerOpen}
-                    onDone={handleRiderAssigned}
-                />
-            )}
+            <MarketplaceRiderPickerSheet
+                orderId={order.id}
+                orderNumber={order.order_number}
+                referenceLat={riderReferenceLat}
+                referenceLng={riderReferenceLng}
+                open={riderPickerOpen}
+                onOpenChange={setRiderPickerOpen}
+                onDone={handleRiderAssigned}
+            />
 
             {/* Agent picker */}
-            {agentPickerOpen && (
-                <MarketplaceAgentPickerSheet
-                    orderId={order.id}
-                    orderNumber={order.order_number}
-                    open={agentPickerOpen}
-                    onOpenChange={setAgentPickerOpen}
-                    onDone={handleAgentAssigned}
-                />
-            )}
+            <MarketplaceAgentPickerSheet
+                orderId={order.id}
+                orderNumber={order.order_number}
+                open={agentPickerOpen}
+                onOpenChange={setAgentPickerOpen}
+                onDone={handleAgentAssigned}
+            />
         </>
     )
 }

@@ -27,7 +27,6 @@ import { useMarketplaceOrders } from "@/hooks/useMarketplaceOrders"
 import { api, ApiError } from "@/lib/api"
 import { emitMarketplaceOrderRefresh } from "@/lib/marketplace-realtime"
 import { EDITABLE_MARKETPLACE_ORDER_STATUSES, type MarketplaceOrder } from "@/types/marketplace"
-import type { Rider } from "@/types/logistics"
 import { MarketplaceRiderPickerSheet } from "@/components/marketplace/marketplace-rider-picker-sheet"
 
 const statusConfig: Record<string, { label: string; className: string }> = {
@@ -62,8 +61,6 @@ export function MarketplaceOrdersTable({ tab }: Props) {
     const [updatingId, setUpdatingId] = useState<string | null>(null)
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
     const [riderPickerOpen, setRiderPickerOpen] = useState(false)
-    const [availableRiders, setAvailableRiders] = useState<Rider[]>([])
-    const [loadingRiders, setLoadingRiders] = useState(false)
 
     const assignableIds = orders.filter(canAssignRider).map((order) => order.id)
     const allAssignableSelected =
@@ -82,18 +79,9 @@ export function MarketplaceOrdersTable({ tab }: Props) {
         setSelectedIds(allAssignableSelected ? new Set() : new Set(assignableIds))
     }
 
-    async function openBatchRiderPicker() {
+    function openBatchRiderPicker() {
         if (selectedIds.size < 2) return
         setRiderPickerOpen(true)
-        setLoadingRiders(true)
-        try {
-            setAvailableRiders(await api.getAvailableRiders())
-        } catch (err) {
-            setAvailableRiders([])
-            toast.error(err instanceof ApiError ? err.message : "Failed to load available riders")
-        } finally {
-            setLoadingRiders(false)
-        }
     }
 
     function handleBatchAssigned() {
@@ -316,17 +304,13 @@ export function MarketplaceOrdersTable({ tab }: Props) {
                 </TableBody>
             </Table>
         </div>
-        {riderPickerOpen && (
-            <MarketplaceRiderPickerSheet
-                orderIds={[...selectedIds]}
-                orderNumber={`${selectedIds.size} marketplace orders`}
-                riders={availableRiders}
-                loadingRiders={loadingRiders}
-                open={riderPickerOpen}
-                onOpenChange={setRiderPickerOpen}
-                onDone={handleBatchAssigned}
-            />
-        )}
+        <MarketplaceRiderPickerSheet
+            orderIds={[...selectedIds]}
+            orderNumber={`${selectedIds.size} marketplace orders`}
+            open={riderPickerOpen}
+            onOpenChange={setRiderPickerOpen}
+            onDone={handleBatchAssigned}
+        />
         </>
     )
 }
