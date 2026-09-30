@@ -188,6 +188,12 @@ export interface SetPasswordPayload {
   password_confirmation: string;
 }
 
+export interface ChangePasswordPayload {
+  old_password: string;
+  password: string;
+  password_confirmation: string;
+}
+
 export interface GetAvailableRidersParams {
   latitude?: number;
   longitude?: number;
@@ -510,6 +516,11 @@ export const api = {
   /** Set vendor admin password using a one-time email token. */
   async setPassword(data: SetPasswordPayload): Promise<void> {
     await client.post<ApiResponse<unknown>>("/vendor_admin/set-password", data);
+  },
+
+  /** Change the signed-in vendor admin password. */
+  async changePassword(data: ChangePasswordPayload): Promise<void> {
+    await client.post<ApiResponse<unknown>>("/vendor_admin/change-password", data);
   },
 
   // ── Orders ─────────────────────────────────

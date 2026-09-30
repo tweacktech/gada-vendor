@@ -1,3 +1,4 @@
+import { useState } from "react"
 import { BellIcon, CheckCheckIcon, Trash2Icon } from "lucide-react"
 import { formatDistanceToNow } from "date-fns"
 import { Link } from "@tanstack/react-router"
@@ -10,7 +11,10 @@ import {
 } from "@/components/ui/popover"
 import { useOrderAlerts } from "@/components/order-alerts-provider"
 
+const PREVIEW_LIMIT = 8
+
 export function NotificationBell() {
+    const [open, setOpen] = useState(false)
     const {
         alerts,
         unreadCount,
@@ -19,9 +23,10 @@ export function NotificationBell() {
         markAsRead,
         deleteNotification,
     } = useOrderAlerts()
+    const preview = alerts.slice(0, PREVIEW_LIMIT)
 
     return (
-        <Popover>
+        <Popover open={open} onOpenChange={setOpen}>
             <PopoverTrigger asChild>
                 <Button variant="ghost" size="icon" className="relative rounded-full">
                     <BellIcon className="size-5" />
@@ -58,13 +63,13 @@ export function NotificationBell() {
                     </div>
                 </div>
 
-                {alerts.length === 0 ? (
+                {preview.length === 0 ? (
                     <p className="px-4 py-6 text-center text-sm text-muted-foreground">
                         No notifications yet.
                     </p>
                 ) : (
                     <ul className="max-h-80 divide-y overflow-y-auto">
-                        {alerts.map((alert) => {
+                        {preview.map((alert) => {
                             const unread = !alert.readAt
                             return (
                                 <li
@@ -121,6 +126,16 @@ export function NotificationBell() {
                         })}
                     </ul>
                 )}
+
+                <div className="border-t px-4 py-2">
+                    <Link
+                        to="/notifications"
+                        className="text-primary block py-1 text-center text-sm font-medium hover:underline"
+                        onClick={() => setOpen(false)}
+                    >
+                        View all notifications
+                    </Link>
+                </div>
             </PopoverContent>
         </Popover>
     )

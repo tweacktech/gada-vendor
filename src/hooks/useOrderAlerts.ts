@@ -25,13 +25,13 @@ export interface OrderAlertsState {
   alerts: OrderAlert[];
   unreadCount: number;
   isConnected: boolean;
+  isLoading: boolean;
   markAllRead: () => Promise<void>;
   markAsRead: (notificationId: string) => Promise<void>;
   refetchInbox: () => void;
   deleteNotification: (notificationId: string) => Promise<void>;
 }
 
-const MAX_ALERTS = 30;
 const SOUND_SRC = "/notification-sound.mp3";
 
 function asText(value: unknown): string | null {
@@ -86,6 +86,7 @@ export function useOrderAlertsInternal(): OrderAlertsState {
   const [alerts, setAlerts] = useState<OrderAlert[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isConnected, setIsConnected] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const playSound = useCallback(() => {
     if (!audioRef.current) {
@@ -111,11 +112,12 @@ export function useOrderAlertsInternal(): OrderAlertsState {
             (a, b) =>
               new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime()
           )
-          .slice(0, MAX_ALERTS)
       );
       setUnreadCount(unread);
     } catch (err) {
       console.warn("[order-alerts] failed to load notification inbox", err);
+    } finally {
+      setIsLoading(false);
     }
   }, []);
 
@@ -236,6 +238,7 @@ export function useOrderAlertsInternal(): OrderAlertsState {
     alerts,
     unreadCount,
     isConnected,
+    isLoading,
     markAllRead,
     markAsRead,
     refetchInbox,

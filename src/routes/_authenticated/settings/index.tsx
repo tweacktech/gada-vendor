@@ -95,6 +95,7 @@ function SettingsPage() {
         new_password: "",
         confirm_password: "",
     })
+    const [savingPassword, setSavingPassword] = useState(false)
 
     const handleVendorUpdate = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -174,8 +175,12 @@ function SettingsPage() {
         })
     }
 
-    const handlePasswordUpdate = (e: React.FormEvent) => {
+    const handlePasswordUpdate = async (e: React.FormEvent) => {
         e.preventDefault()
+        if (!passwordData.current_password) {
+            toast.error("Enter your current password.")
+            return
+        }
         if (passwordData.new_password !== passwordData.confirm_password) {
             toast.error("Passwords do not match!")
             return
@@ -184,12 +189,24 @@ function SettingsPage() {
             toast.error("Password must be at least 8 characters!")
             return
         }
-        toast.success("Password updated successfully!")
-        setPasswordData({
-            current_password: "",
-            new_password: "",
-            confirm_password: "",
-        })
+        setSavingPassword(true)
+        try {
+            await api.changePassword({
+                old_password: passwordData.current_password,
+                password: passwordData.new_password,
+                password_confirmation: passwordData.confirm_password,
+            })
+            toast.success("Password updated successfully!")
+            setPasswordData({
+                current_password: "",
+                new_password: "",
+                confirm_password: "",
+            })
+        } catch (err) {
+            toast.error(err instanceof ApiError ? err.message : "Could not update password")
+        } finally {
+            setSavingPassword(false)
+        }
     }
 
     return (
@@ -509,8 +526,9 @@ function SettingsPage() {
                                 </div>
 
                                 <div className="flex justify-end">
-                                    <Button type="submit">
-                                        Update Password
+                                    <Button type="submit" disabled={savingPassword} className="gap-2">
+                                        {savingPassword && <Loader2Icon className="size-4 animate-spin" />}
+                                        {savingPassword ? "Updating…" : "Update Password"}
                                     </Button>
                                 </div>
                             </form>

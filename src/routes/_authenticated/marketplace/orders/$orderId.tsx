@@ -4,9 +4,11 @@ import {
     AlertCircleIcon,
     ArrowLeftIcon,
     CheckCircle2Icon,
+    ChefHatIcon,
     CircleIcon,
     CreditCardIcon,
     MapPinIcon,
+    MoreHorizontalIcon,
     PackageIcon,
     PhoneIcon,
     RefreshCwIcon,
@@ -14,15 +16,13 @@ import {
     TruckIcon,
     UserRoundIcon,
     UserRoundPlusIcon,
+    XCircleIcon,
 } from "lucide-react"
 
 import { useMarketplaceOrder } from "@/hooks/useMarketplaceOrder"
 import { usePageTitle } from "@/hooks/usePageTitle"
 import { api, ApiError } from "@/lib/api"
-import {
-    EDITABLE_MARKETPLACE_ORDER_STATUSES,
-    type MarketplaceOrderTimelineResponse,
-} from "@/types/marketplace"
+import type { MarketplaceOrderTimelineResponse } from "@/types/marketplace"
 import { MarketplaceRiderPickerSheet } from "@/components/marketplace/marketplace-rider-picker-sheet"
 import { extractGeoPoint } from "@/lib/vendor-location"
 import { MarketplaceAgentPickerSheet } from "@/components/marketplace/marketplace-agent-picker-sheet"
@@ -30,14 +30,13 @@ import { MarketplaceAgentPickerSheet } from "@/components/marketplace/marketplac
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Skeleton } from "@/components/ui/skeleton"
 import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "@/components/ui/select"
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { Skeleton } from "@/components/ui/skeleton"
 import { toast } from "sonner"
 
 // ── Route ────────────────────────────────────────────────────────────────────
@@ -210,6 +209,12 @@ function MarketplaceOrderDetailPage() {
 
     async function handleStatusChange(status: string) {
         if (!order) return
+        const label = statusConfig[status]?.label ?? status
+        const message =
+            status === "cancelled"
+                ? `Cancel order ${order.order_number}?`
+                : `Change order ${order.order_number} to ${label}?`
+        if (!window.confirm(message)) return
         setStatusBusy(true)
         try {
             await api.updateMarketplaceOrderStatus(order.id, status)
@@ -220,6 +225,11 @@ function MarketplaceOrderDetailPage() {
         } finally {
             setStatusBusy(false)
         }
+    }
+
+    function handleCancel() {
+        if (!order) return
+        void handleStatusChange("cancelled")
     }
 
     // ── Loading ──────────────────────────────────────────────────────────────
@@ -266,7 +276,7 @@ function MarketplaceOrderDetailPage() {
     }
 
     const status = statusConfig[order.status] ?? { label: order.status, badgeClass: "bg-zinc-500/10 text-zinc-500" }
-    const isFinal = order.status === "completed" || order.status === "cancelled"
+    const canUpdate = order.status.toLowerCase() === "confirmed"
     return (
         <>
             {/* Header */}
@@ -291,22 +301,34 @@ function MarketplaceOrderDetailPage() {
 
                 <div className="flex flex-wrap items-center gap-2">
                     <Badge className={`rounded-sm capitalize ${status.badgeClass}`}>{status.label}</Badge>
-                    <Select disabled={isFinal || statusBusy} value={order.status} onValueChange={handleStatusChange}>
-                        <SelectTrigger className="w-44" size="sm">
-                            <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value={order.status} disabled>
-                                {status.label}
-                            </SelectItem>
-                            {EDITABLE_MARKETPLACE_ORDER_STATUSES.filter((s) => s !== order.status).map((s) => (
-                                <SelectItem key={s} value={s}>
-                                    {statusConfig[s]?.label ?? s}
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
                     <span className="text-muted-foreground text-xs">{formatDate(order.created_at)}</span>
+                    {canUpdate && (
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button variant="outline" size="sm" disabled={statusBusy} className="gap-1.5">
+                                    <MoreHorizontalIcon className="size-4" />
+                                    Actions
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-48">
+                                <DropdownMenuItem
+                                    disabled={statusBusy}
+                                    onClick={() => void handleStatusChange("preparing")}
+                                >
+                                    <ChefHatIcon />
+                                    Mark as preparing
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                    variant="destructive"
+                                    disabled={statusBusy}
+                                    onClick={handleCancel}
+                                >
+                                    <XCircleIcon />
+                                    Cancel
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                    )}
                 </div>
             </div>
 

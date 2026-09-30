@@ -7,6 +7,12 @@ import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Button } from "@/components/ui/button"
 import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import {
     Table,
     TableBody,
     TableCell,
@@ -14,19 +20,12 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table"
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "@/components/ui/select"
-import { EyeIcon, RefreshCwIcon, UserRoundPlusIcon, XCircleIcon } from "lucide-react"
+import { ChefHatIcon, EyeIcon, MoreHorizontalIcon, RefreshCwIcon, UserRoundPlusIcon, XCircleIcon } from "lucide-react"
 
 import { useMarketplaceOrders } from "@/hooks/useMarketplaceOrders"
 import { api, ApiError } from "@/lib/api"
 import { emitMarketplaceOrderRefresh } from "@/lib/marketplace-realtime"
-import { EDITABLE_MARKETPLACE_ORDER_STATUSES, type MarketplaceOrder } from "@/types/marketplace"
+import type { MarketplaceOrder } from "@/types/marketplace"
 import { MarketplaceRiderPickerSheet } from "@/components/marketplace/marketplace-rider-picker-sheet"
 
 const statusConfig: Record<string, { label: string; className: string }> = {
@@ -46,10 +45,14 @@ function formatCurrency(amount: number | string | null | undefined) {
     return new Intl.NumberFormat("en-NG", { style: "currency", currency: "NGN" }).format(value)
 }
 
-const COLUMN_COUNT = 9
+const COLUMN_COUNT = 8
 
 function canAssignRider(order: MarketplaceOrder) {
-    return !order.rider && order.status !== "completed" && order.status !== "cancelled"
+    return order.status.toLowerCase() === "preparing" && !order.rider
+}
+
+function isConfirmed(order: MarketplaceOrder) {
+    return order.status.toLowerCase() === "confirmed"
 }
 
 interface Props {
@@ -63,6 +66,7 @@ export function MarketplaceOrdersTable({ tab }: Props) {
     const [riderPickerOpen, setRiderPickerOpen] = useState(false)
 
     const assignableIds = orders.filter(canAssignRider).map((order) => order.id)
+    const selectedAssignableIds = [...selectedIds].filter((id) => assignableIds.includes(id))
     const allAssignableSelected =
         assignableIds.length > 0 && assignableIds.every((id) => selectedIds.has(id))
 
@@ -80,7 +84,7 @@ export function MarketplaceOrdersTable({ tab }: Props) {
     }
 
     function openBatchRiderPicker() {
-        if (selectedIds.size < 2) return
+        if (selectedAssignableIds.length < 2) return
         setRiderPickerOpen(true)
     }
 
@@ -92,6 +96,13 @@ export function MarketplaceOrdersTable({ tab }: Props) {
     }
 
     async function handleStatusChange(order: MarketplaceOrder, status: string) {
+        const label = statusConfig[status]?.label ?? status
+        const message =
+            status === "cancelled"
+                ? `Cancel order ${order.order_number}?`
+                : `Change order ${order.order_number} to ${label}?`
+        if (!window.confirm(message)) return
+
         setUpdatingId(order.id)
         applyStatus(order.id, status)
         try {
@@ -118,23 +129,20 @@ export function MarketplaceOrdersTable({ tab }: Props) {
         }
     }
 
-    async function handleReject(order: MarketplaceOrder) {
-        if (!window.confirm(`Reject order ${order.order_number}? This will cancel the order.`)) {
-            return
-        }
+    async function handleCancel(order: MarketplaceOrder) {
         await handleStatusChange(order, "cancelled")
     }
 
     return (
         <>
         <div className="overflow-x-auto rounded-md border">
-            {selectedIds.size > 0 && (
+            {selectedAssignableIds.length > 0 && (
                 <div className="border-primary/30 bg-primary/5 flex flex-wrap items-center gap-3 border-b px-4 py-2.5 text-sm">
                     <span className="flex-1 font-medium">
-                        {selectedIds.size} order{selectedIds.size === 1 ? "" : "s"} selected
-                        {selectedIds.size < 2 && (
+                        {selectedAssignableIds.length} preparing order{selectedAssignableIds.length === 1 ? "" : "s"} selected
+                        {selectedAssignableIds.length < 2 && (
                             <span className="text-muted-foreground ml-2 text-xs font-normal">
-                                Select at least 2 for batch assignment
+                                Select at least 2 preparing orders for batch assignment
                             </span>
                         )}
                     </span>
@@ -144,7 +152,7 @@ export function MarketplaceOrdersTable({ tab }: Props) {
                     <Button
                         size="sm"
                         className="gap-1.5"
-                        disabled={selectedIds.size < 2}
+                        disabled={selectedAssignableIds.length < 2}
                         onClick={() => void openBatchRiderPicker()}
                     >
                         <UserRoundPlusIcon className="size-4" />
@@ -162,7 +170,7 @@ export function MarketplaceOrdersTable({ tab }: Props) {
                                 checked={allAssignableSelected}
                                 disabled={assignableIds.length === 0}
                                 onChange={toggleAllAssignable}
-                                aria-label="Select all unassigned marketplace orders"
+                                aria-label="Select all preparing orders"
                             />
                         </TableHead>
                         <TableHead>Order</TableHead>
@@ -171,8 +179,7 @@ export function MarketplaceOrdersTable({ tab }: Props) {
                         <TableHead>Status</TableHead>
                         <TableHead>Agent</TableHead>
                         <TableHead>Placed</TableHead>
-                        <TableHead className="text-right">Reject</TableHead>
-                        <TableHead className="text-right">Details</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -183,11 +190,10 @@ export function MarketplaceOrdersTable({ tab }: Props) {
                                 <TableCell><Skeleton className="h-4 w-28" /></TableCell>
                                 <TableCell><Skeleton className="h-4 w-16" /></TableCell>
                                 <TableCell><Skeleton className="h-4 w-20" /></TableCell>
-                                <TableCell><Skeleton className="h-8 w-32" /></TableCell>
+                                <TableCell><Skeleton className="h-5 w-20" /></TableCell>
                                 <TableCell><Skeleton className="h-4 w-20" /></TableCell>
                                 <TableCell><Skeleton className="h-4 w-24" /></TableCell>
-                                <TableCell><Skeleton className="h-8 w-8 ml-auto" /></TableCell>
-                                <TableCell><Skeleton className="h-8 w-8 ml-auto" /></TableCell>
+                                <TableCell><Skeleton className="ml-auto h-8 w-40" /></TableCell>
                             </TableRow>
                         ))
                     ) : error ? (
@@ -211,7 +217,8 @@ export function MarketplaceOrdersTable({ tab }: Props) {
                     ) : (
                         orders.map((order) => {
                             const status = statusConfig[order.status] ?? { label: order.status, className: "bg-muted text-muted-foreground" }
-                            const isFinal = order.status === "completed" || order.status === "cancelled"
+                            const canUpdate = isConfirmed(order)
+                            const busy = updatingId === order.id
                             return (
                                 <TableRow key={order.id}>
                                     <TableCell>
@@ -221,7 +228,7 @@ export function MarketplaceOrdersTable({ tab }: Props) {
                                                 className="size-4 cursor-pointer accent-primary"
                                                 checked={selectedIds.has(order.id)}
                                                 onChange={() => toggleOrder(order.id)}
-                                                aria-label={`Select order ${order.order_number}`}
+                                                aria-label={`Select preparing order ${order.order_number}`}
                                             />
                                         )}
                                     </TableCell>
@@ -231,33 +238,9 @@ export function MarketplaceOrdersTable({ tab }: Props) {
                                     </TableCell>
                                     <TableCell className="text-sm">{formatCurrency(order.total ?? order.pricing?.total)}</TableCell>
                                     <TableCell>
-                                        {isFinal ? (
-                                            <Badge className={status.className} variant="outline">
-                                                {status.label}
-                                            </Badge>
-                                        ) : (
-                                            <Select
-                                                disabled={updatingId === order.id}
-                                                value={order.status}
-                                                onValueChange={(value) => handleStatusChange(order, value)}
-                                            >
-                                                <SelectTrigger className="w-40" size="sm">
-                                                    <SelectValue />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    <SelectItem value={order.status}>
-                                                        {status.label}
-                                                    </SelectItem>
-                                                    {EDITABLE_MARKETPLACE_ORDER_STATUSES
-                                                        .filter((s) => s !== order.status)
-                                                        .map((s) => (
-                                                            <SelectItem key={s} value={s}>
-                                                                {statusConfig[s]?.label ?? s}
-                                                            </SelectItem>
-                                                        ))}
-                                                </SelectContent>
-                                            </Select>
-                                        )}
+                                        <Badge className={status.className} variant="outline">
+                                            {status.label}
+                                        </Badge>
                                     </TableCell>
                                     <TableCell className="text-muted-foreground text-sm">
                                         {order.agent?.full_name ?? order.agent?.name ?? (order.agent_status
@@ -268,34 +251,49 @@ export function MarketplaceOrdersTable({ tab }: Props) {
                                         {format(new Date(order.created_at), "MMM d, HH:mm")}
                                     </TableCell>
                                     <TableCell className="text-right">
-                                        {!isFinal && (
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                className="ml-auto text-destructive hover:text-destructive"
-                                                disabled={updatingId === order.id}
-                                                aria-label={`Reject order ${order.order_number}`}
-                                                onClick={() => void handleReject(order)}
-                                            >
-                                                <XCircleIcon className="size-4" />
-                                            </Button>
-                                        )}
-                                    </TableCell>
-                                    <TableCell className="text-right">
-                                        <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            className="ml-auto"
-                                            asChild
-                                        >
-                                            <Link
-                                                to="/marketplace/orders/$orderId"
-                                                params={{ orderId: order.id }}
-                                                aria-label={`View order ${order.order_number}`}
-                                            >
-                                                <EyeIcon className="size-4" />
-                                            </Link>
-                                        </Button>
+                                        <DropdownMenu>
+                                            <DropdownMenuTrigger asChild>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="ml-auto"
+                                                    disabled={busy}
+                                                    aria-label={`Actions for order ${order.order_number}`}
+                                                >
+                                                    <MoreHorizontalIcon className="size-4" />
+                                                </Button>
+                                            </DropdownMenuTrigger>
+                                            <DropdownMenuContent align="end" className="w-48">
+                                                {canUpdate && (
+                                                    <>
+                                                        <DropdownMenuItem
+                                                            disabled={busy}
+                                                            onClick={() => void handleStatusChange(order, "preparing")}
+                                                        >
+                                                            <ChefHatIcon />
+                                                            Mark as preparing
+                                                        </DropdownMenuItem>
+                                                        <DropdownMenuItem
+                                                            variant="destructive"
+                                                            disabled={busy}
+                                                            onClick={() => void handleCancel(order)}
+                                                        >
+                                                            <XCircleIcon />
+                                                            Cancel
+                                                        </DropdownMenuItem>
+                                                    </>
+                                                )}
+                                                <DropdownMenuItem asChild>
+                                                    <Link
+                                                        to="/marketplace/orders/$orderId"
+                                                        params={{ orderId: order.id }}
+                                                    >
+                                                        <EyeIcon />
+                                                        View
+                                                    </Link>
+                                                </DropdownMenuItem>
+                                            </DropdownMenuContent>
+                                        </DropdownMenu>
                                     </TableCell>
                                 </TableRow>
                             )
@@ -305,8 +303,8 @@ export function MarketplaceOrdersTable({ tab }: Props) {
             </Table>
         </div>
         <MarketplaceRiderPickerSheet
-            orderIds={[...selectedIds]}
-            orderNumber={`${selectedIds.size} marketplace orders`}
+            orderIds={selectedAssignableIds}
+            orderNumber={`${selectedAssignableIds.length} marketplace orders`}
             open={riderPickerOpen}
             onOpenChange={setRiderPickerOpen}
             onDone={handleBatchAssigned}
