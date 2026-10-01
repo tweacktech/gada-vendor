@@ -59,8 +59,8 @@ const ProfileDropdown = ({ trigger, defaultOpen, align = 'end' }: Props) => {
             <span className='ring-card absolute right-0 bottom-0 block size-2 rounded-full bg-green-600 ring-2' />
           </div>
           <div className='flex flex-1 flex-col items-start'>
-            <span className='text-foreground text-lg font-semibold'>{userName}</span>
-            <span className='text-muted-foreground text-base'>{userEmail}</span>
+            <span className='text-foreground text-sm font-semibold'>{userName}</span>
+            <span className='text-muted-foreground text-xs'>{userEmail}</span>
           </div>
         </DropdownMenuLabel>
 
@@ -68,10 +68,10 @@ const ProfileDropdown = ({ trigger, defaultOpen, align = 'end' }: Props) => {
 
         <DropdownMenuItem
           variant='destructive'
-          className='px-4 py-2.5 text-base'
+          className='px-4 py-2.5 text-sx'
           onClick={handleLogout}
         >
-          <LogOutIcon className='size-5' />
+          <LogOutIcon className='size-2' />
           <span>Logout</span>
         </DropdownMenuItem>
       </DropdownMenuContent>

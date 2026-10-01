@@ -489,17 +489,17 @@ export const api = {
   // ── Auth ───────────────────────────────────
 
   /** Login with email + password. Stores the returned JWT automatically. */
-  async login(email: string, password: string): Promise<LoginResponse> {
+  async login(email: string, password: string, remember = true): Promise<LoginResponse> {
     const res = await client.post<ApiResponse<LoginResponse>>("/vendor_admin/login", {
       email,
       password,
-      
     });
-    
+
     // The wrapper provides res.data = { success, message, data: { token, user } }
     const payload = res.data.data;
-    auth.setToken(payload.token);
-    auth.setCurrentUser(payload.user);
+    auth.setToken(payload.token, remember);
+    auth.setCurrentUser(payload.user, remember);
+    auth.setRememberedEmail(remember ? email : null);
     return payload;
   },
 

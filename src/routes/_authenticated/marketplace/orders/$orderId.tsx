@@ -347,7 +347,7 @@ function MarketplaceOrderDetailPage() {
                         <CardContent className="flex flex-col gap-4">
                             <InfoRow icon={UserRoundIcon} label="Name" value={order.customer?.full_name ?? "—"} />
                             <InfoRow icon={PhoneIcon} label="Phone" value={order.customer?.phone ?? "—"} />
-                            <InfoRow icon={StoreIcon} label="Vendor" value={order.vendor?.name ?? "—"} />
+                            {/* <InfoRow icon={StoreIcon} label="Vendor" value={order.vendor?.name ?? "—"} /> */}
                         </CardContent>
                     </Card>
 

@@ -46,6 +46,7 @@ function LoginPage() {
 
     const router = useRouter()
     const [showPassword, setShowPassword] = useState(false)
+    const [rememberMe, setRememberMe] = useState(() => auth.getRememberMe())
     const [serverError, setServerError] = useState<string | null>(null)
 
     const {
@@ -54,12 +55,16 @@ function LoginPage() {
         formState: { errors, isSubmitting },
     } = useForm<FormValues>({
         resolver: standardSchemaResolver(schema),
+        defaultValues: {
+            email: auth.getRememberedEmail(),
+            password: "",
+        },
     })
 
     async function onSubmit(values: FormValues) {
         setServerError(null)
         try {
-            await api.login(values.email, values.password)
+            await api.login(values.email, values.password, rememberMe)
             await router.navigate({ to: "/" })
         } catch (err) {
             const message =
@@ -134,6 +139,19 @@ function LoginPage() {
                                 {errors.password && (
                                     <p className="text-destructive text-xs">{errors.password.message}</p>
                                 )}
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                                <input
+                                    id="remember"
+                                    type="checkbox"
+                                    checked={rememberMe}
+                                    onChange={(e) => setRememberMe(e.target.checked)}
+                                    className="border-input accent-primary size-4 rounded border"
+                                />
+                                <Label htmlFor="remember" className="cursor-pointer font-normal">
+                                    Remember me
+                                </Label>
                             </div>
 
                             {/* Server-level error */}
