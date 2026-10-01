@@ -12,7 +12,6 @@ import {
     PackageIcon,
     PhoneIcon,
     RefreshCwIcon,
-    StoreIcon,
     TruckIcon,
     UserRoundIcon,
     UserRoundPlusIcon,
