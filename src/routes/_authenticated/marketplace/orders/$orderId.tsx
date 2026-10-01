@@ -25,7 +25,8 @@ import { api, ApiError } from "@/lib/api"
 import type { MarketplaceOrderTimelineResponse } from "@/types/marketplace"
 import { MarketplaceRiderPickerSheet } from "@/components/marketplace/marketplace-rider-picker-sheet"
 import { extractGeoPoint } from "@/lib/vendor-location"
-import { MarketplaceAgentPickerSheet } from "@/components/marketplace/marketplace-agent-picker-sheet"
+// Agent assignment is handled on the main admin dashboard.
+// import { MarketplaceAgentPickerSheet } from "@/components/marketplace/marketplace-agent-picker-sheet"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -175,7 +176,7 @@ function MarketplaceOrderDetailPage() {
     usePageTitle(order ? `Order ${order.order_number}` : "Marketplace Order")
 
     const [riderPickerOpen, setRiderPickerOpen] = useState(false)
-    const [agentPickerOpen, setAgentPickerOpen] = useState(false)
+    // const [agentPickerOpen, setAgentPickerOpen] = useState(false)
     const [statusBusy, setStatusBusy] = useState(false)
     const [riderReferenceLat, setRiderReferenceLat] = useState<number | null>(null)
     const [riderReferenceLng, setRiderReferenceLng] = useState<number | null>(null)
@@ -202,10 +203,10 @@ function MarketplaceOrderDetailPage() {
         refetch()
     }
 
-    function handleAgentAssigned() {
-        setAgentPickerOpen(false)
-        refetch()
-    }
+    // function handleAgentAssigned() {
+    //     setAgentPickerOpen(false)
+    //     refetch()
+    // }
 
     async function handleStatusChange(status: string) {
         if (!order) return
@@ -340,42 +341,13 @@ function MarketplaceOrderDetailPage() {
                         <CardHeader className="pb-3">
                             <CardTitle className="flex items-center gap-2 text-sm font-semibold">
                                 <UserRoundIcon className="text-muted-foreground size-4" />
-                                Customer, Agent & Rider
+                                Customer
                             </CardTitle>
                         </CardHeader>
-                        <CardContent className="grid gap-6 md:grid-cols-3">
-                            <div className="space-y-3">
-                                <p className="text-muted-foreground text-xs font-medium uppercase tracking-wide">Customer</p>
-                                <InfoRow icon={UserRoundIcon} label="Name" value={order.customer?.full_name ?? "—"} />
-                                <InfoRow icon={PhoneIcon} label="Phone" value={order.customer?.phone ?? "—"} />
-                                <InfoRow icon={StoreIcon} label="Vendor" value={order.vendor?.name ?? "—"} />
-                            </div>
-                            <div className="space-y-3">
-                                <div className="flex items-center justify-between gap-2">
-                                    <p className="text-muted-foreground text-xs font-medium uppercase tracking-wide">Agent</p>
-                                    <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs" onClick={() => setAgentPickerOpen(true)}>
-                                        <UserRoundPlusIcon className="size-3.5" />
-                                        {order.agent ? "Reassign" : "Assign"}
-                                    </Button>
-                                </div>
-                                <InfoRow
-                                    icon={UserRoundIcon}
-                                    label="Name"
-                                    value={order.agent?.full_name ?? order.agent?.name ?? "Not assigned"}
-                                />
-                                <InfoRow icon={PhoneIcon} label="Phone" value={order.agent?.phone ?? "—"} />
-                            </div>
-                            <div className="space-y-3">
-                                <div className="flex items-center justify-between gap-2">
-                                    <p className="text-muted-foreground text-xs font-medium uppercase tracking-wide">Rider</p>
-                                    <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs" onClick={openRiderPicker}>
-                                        <UserRoundPlusIcon className="size-3.5" />
-                                        {order.rider ? "Reassign" : "Assign"}
-                                    </Button>
-                                </div>
-                                <InfoRow icon={TruckIcon} label="Name" value={order.rider?.name ?? "Not assigned"} />
-                                <InfoRow icon={PhoneIcon} label="Phone" value={order.rider?.phone ?? "—"} />
-                            </div>
+                        <CardContent className="flex flex-col gap-4">
+                            <InfoRow icon={UserRoundIcon} label="Name" value={order.customer?.full_name ?? "—"} />
+                            <InfoRow icon={PhoneIcon} label="Phone" value={order.customer?.phone ?? "—"} />
+                            <InfoRow icon={StoreIcon} label="Vendor" value={order.vendor?.name ?? "—"} />
                         </CardContent>
                     </Card>
 
@@ -505,6 +477,48 @@ function MarketplaceOrderDetailPage() {
                         </CardContent>
                     </Card>
 
+                    <Card>
+                        <CardHeader className="pb-3">
+                            <CardTitle className="flex items-center gap-2 text-sm font-semibold">
+                                <UserRoundIcon className="text-muted-foreground size-4" />
+                                Agent
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent className="flex flex-col gap-4">
+                            {/* Agent assignment is handled on the main admin dashboard.
+                            <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs" onClick={() => setAgentPickerOpen(true)}>
+                                <UserRoundPlusIcon className="size-3.5" />
+                                {order.agent ? "Reassign" : "Assign"}
+                            </Button>
+                            */}
+                            <InfoRow
+                                icon={UserRoundIcon}
+                                label="Name"
+                                value={order.agent?.full_name ?? order.agent?.name ?? "Not assigned"}
+                            />
+                            <InfoRow icon={PhoneIcon} label="Phone" value={order.agent?.phone ?? "—"} />
+                        </CardContent>
+                    </Card>
+
+                    <Card>
+                        <CardHeader className="pb-3">
+                            <div className="flex items-center justify-between gap-2">
+                                <CardTitle className="flex items-center gap-2 text-sm font-semibold">
+                                    <TruckIcon className="text-muted-foreground size-4" />
+                                    Rider
+                                </CardTitle>
+                                <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs" onClick={openRiderPicker}>
+                                    <UserRoundPlusIcon className="size-3.5" />
+                                    {order.rider ? "Reassign" : "Assign"}
+                                </Button>
+                            </div>
+                        </CardHeader>
+                        <CardContent className="flex flex-col gap-4">
+                            <InfoRow icon={TruckIcon} label="Name" value={order.rider?.name ?? "Not assigned"} />
+                            <InfoRow icon={PhoneIcon} label="Phone" value={order.rider?.phone ?? "—"} />
+                        </CardContent>
+                    </Card>
+
                 </div>
             </div>
 
@@ -519,7 +533,7 @@ function MarketplaceOrderDetailPage() {
                 onDone={handleRiderAssigned}
             />
 
-            {/* Agent picker */}
+            {/* Agent picker — assignment is handled on the main admin dashboard.
             <MarketplaceAgentPickerSheet
                 orderId={order.id}
                 orderNumber={order.order_number}
@@ -527,6 +541,7 @@ function MarketplaceOrderDetailPage() {
                 onOpenChange={setAgentPickerOpen}
                 onDone={handleAgentAssigned}
             />
+            */}
         </>
     )
 }
