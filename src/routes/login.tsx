@@ -74,7 +74,7 @@ function LoginPage() {
                 {/* Brand */}
                 <div className="flex flex-col items-center gap-3">
                     <div className="">
-                        <img src="/gadaride-logo.png" alt="Logo" className="w-48" />
+                        <img src="/gada_logo.png" alt="Logo" className="w-48" />
                     </div>
                     
                 </div>

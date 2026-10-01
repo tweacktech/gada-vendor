@@ -106,7 +106,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
                 <SidebarHeader className="p-4">
                     <div className="flex items-center gap-2 overflow-hidden">
                         <img
-                            src="/gadaride-logo.png"
+                            src="/gada_logo.png"
                             className="shrink-0 rounded-md w-28"
                             alt="logo"
                         />
