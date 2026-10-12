@@ -22,6 +22,7 @@ interface MapPickerModalProps {
     onOpenChange: (open: boolean) => void
     initialLat?: number
     initialLng?: number
+    description?: string
     onConfirm: (address: string, lat: number, lng: number) => void
 }
 
@@ -31,6 +32,7 @@ export function MapPickerModal({
     onOpenChange,
     initialLat,
     initialLng,
+    description = "Drag the pin or click on the map to select the exact delivery location.",
     onConfirm,
 }: MapPickerModalProps) {
     const { isLoaded, loadError } = useLoadScript({
@@ -110,7 +112,7 @@ export function MapPickerModal({
                 <DialogHeader className="p-6 pb-2">
                     <DialogTitle>Select Exact Location</DialogTitle>
                     <DialogDescription>
-                        Drag the pin or click on the map to select the exact delivery location.
+                        {description}
                     </DialogDescription>
                 </DialogHeader>
 

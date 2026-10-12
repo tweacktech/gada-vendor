@@ -194,6 +194,34 @@ export interface ChangePasswordPayload {
   password_confirmation: string;
 }
 
+export const VENDOR_REGISTRATION_TYPES = ["restaurant", "pharmacy", "local_market"] as const;
+
+export type VendorRegistrationType = (typeof VENDOR_REGISTRATION_TYPES)[number];
+
+export interface RegisterVendorPayload {
+  full_name: string;
+  email: string;
+  phone: string;
+  password: string;
+  password_confirmation: string;
+  business_name: string;
+  type: VendorRegistrationType;
+  address: string;
+  latitude?: number;
+  longitude?: number;
+}
+
+export interface ForgetPasswordPayload {
+  email: string;
+}
+
+export interface ResetPasswordPayload {
+  email: string;
+  otp: string;
+  password: string;
+  password_confirmation: string;
+}
+
 export interface GetAvailableRidersParams {
   latitude?: number;
   longitude?: number;
@@ -228,14 +256,42 @@ export class ApiError extends Error {
   }
 }
 
+function messageFromApiBody(data: unknown, fallback: string): string {
+  if (!data || typeof data !== "object") return fallback;
+
+  const body = data as {
+    message?: unknown;
+    code?: unknown;
+    errors?: Record<string, unknown>;
+  };
+
+  if (body.errors && typeof body.errors === "object") {
+    const messages = Object.values(body.errors).flatMap((value) => {
+      if (Array.isArray(value)) {
+        return value.filter((item): item is string => typeof item === "string" && item.length > 0);
+      }
+      return typeof value === "string" && value.length > 0 ? [value] : [];
+    });
+    if (messages.length > 0) return messages.join(" ");
+  }
+
+  if (typeof body.message === "string" && body.message.trim()) return body.message;
+  return fallback;
+}
+
 /** Normalises an Axios error into a typed ApiError. */
 function handleAxiosError(error: unknown): never {
   if (axios.isAxiosError(error)) {
-    const axiosErr = error as AxiosError<{ message?: string; code?: string }>;
+    const axiosErr = error as AxiosError<{ message?: string; code?: string; errors?: Record<string, unknown> }>;
     const status = axiosErr.response?.status ?? 0;
-    const message =
-      axiosErr.response?.data?.message ?? axiosErr.message ?? "Unknown error";
-    const code = axiosErr.response?.data?.code;
+    const message = messageFromApiBody(
+      axiosErr.response?.data,
+      axiosErr.message || "Unknown error"
+    );
+    const code =
+      axiosErr.response?.data && typeof axiosErr.response.data.code === "string"
+        ? axiosErr.response.data.code
+        : undefined;
 
     throw new ApiError(message, status, code);
   }
@@ -521,6 +577,24 @@ export const api = {
   /** Change the signed-in vendor admin password. */
   async changePassword(data: ChangePasswordPayload): Promise<void> {
     await client.post<ApiResponse<unknown>>("/vendor_admin/change-password", data);
+  },
+
+  /** Register a vendor account. It stays pending until an admin approves it. */
+  async registerVendor(data: RegisterVendorPayload): Promise<string> {
+    const res = await client.post<ApiResponse<unknown>>("/vendor_admin/register", data);
+    return res.data.message ?? "Your account is waiting for admin approval.";
+  },
+
+  /** Send a password-reset code by SMS and email. */
+  async forgetPassword(data: ForgetPasswordPayload): Promise<string> {
+    const res = await client.post<ApiResponse<unknown>>("/vendor_admin/forget-password", data);
+    return res.data.message ?? "A code was sent by SMS and email.";
+  },
+
+  /** Set a new password using the emailed or texted code. */
+  async resetPassword(data: ResetPasswordPayload): Promise<string> {
+    const res = await client.post<ApiResponse<unknown>>("/vendor_admin/reset-password", data);
+    return res.data.message ?? "Password updated.";
   },
 
   // ── Orders ─────────────────────────────────

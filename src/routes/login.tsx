@@ -1,4 +1,4 @@
-import { createFileRoute, redirect, useRouter } from "@tanstack/react-router"
+import { createFileRoute, Link, redirect, useRouter } from "@tanstack/react-router"
 import { useForm } from "react-hook-form"
 import { standardSchemaResolver } from "@hookform/resolvers/standard-schema"
 import { z } from "zod"
@@ -75,7 +75,7 @@ function LoginPage() {
 
     return (
         <div className="bg-background flex min-h-screen items-center justify-center p-4">
-            <div className="w-full max-w-sm space-y-8">
+            <div className="w-full max-w-md space-y-12">
                 {/* Brand */}
                 <div className="flex flex-col items-center gap-3">
                     <div className="">
@@ -141,17 +141,25 @@ function LoginPage() {
                                 )}
                             </div>
 
-                            <div className="flex items-center gap-2">
-                                <input
-                                    id="remember"
-                                    type="checkbox"
-                                    checked={rememberMe}
-                                    onChange={(e) => setRememberMe(e.target.checked)}
-                                    className="border-input accent-primary size-4 rounded border"
-                                />
-                                <Label htmlFor="remember" className="cursor-pointer font-normal">
-                                    Remember me
-                                </Label>
+                            <div className="flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-2">
+                                    <input
+                                        id="remember"
+                                        type="checkbox"
+                                        checked={rememberMe}
+                                        onChange={(e) => setRememberMe(e.target.checked)}
+                                        className="border-input accent-primary size-4 rounded border"
+                                    />
+                                    <Label htmlFor="remember" className="cursor-pointer font-normal">
+                                        Remember me
+                                    </Label>
+                                </div>
+                                <Link
+                                    to="/forgot-password"
+                                    className="text-primary text-sm underline-offset-4 hover:underline"
+                                >
+                                    Forgot password?
+                                </Link>
                             </div>
 
                             {/* Server-level error */}
@@ -164,6 +172,16 @@ function LoginPage() {
                             <Button type="submit" className="w-full" disabled={isSubmitting}>
                                 {isSubmitting ? "Signing in…" : "Sign in"}
                             </Button>
+
+                            <p className="text-muted-foreground text-center text-sm">
+                                New vendor?{" "}
+                                <Link
+                                    to="/register"
+                                    className="text-primary font-medium underline-offset-4 hover:underline"
+                                >
+                                    Create an account
+                                </Link>
+                            </p>
                         </form>
                     </CardContent>
                 </Card>
