@@ -5,6 +5,7 @@ import {
     ShoppingBagIcon,
     ShoppingCartIcon,
     StoreIcon,
+    WalletIcon,
     Sun,
     Moon,
 } from "lucide-react"
@@ -48,7 +49,7 @@ const mainNavItems: NavItem[] = [
     // { icon: UsersIcon, label: "Customers", to: "/customers" },
     { icon: ShoppingBagIcon, label: "Marketplace", to: "/marketplace" },
     { icon: StoreIcon, label: "Vendors", to: "/vendors" },
-    // { icon: ReceiptIcon, label: "Transactions", to: "/transactions" },
+    { icon: WalletIcon, label: "Earnings", to: "/earnings" },
 ]
 
 const secondaryNavItems: NavItem[] = [

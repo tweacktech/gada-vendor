@@ -222,6 +222,80 @@ export interface ResetPasswordPayload {
   password_confirmation: string;
 }
 
+export interface VendorWallet {
+  balance: number;
+  currency: string;
+  /** Null when the API does not say whether this admin may withdraw. */
+  canWithdraw: boolean | null;
+  fee: number | null;
+  reason: string | null;
+}
+
+export interface VendorTransaction {
+  id: string;
+  type: "credit" | "debit" | string;
+  amount: number;
+  description: string;
+  status: string;
+  createdAt: string | null;
+  reference: string;
+}
+
+export interface VendorBank {
+  code: string;
+  name: string;
+}
+
+export interface BankAccountLookup {
+  accountName: string;
+  accountNumber: string;
+  bankCode: string;
+}
+
+export interface SaveBankBeneficiaryPayload {
+  account_number: string;
+  account_name: string;
+  bank_code: string;
+  bank_name: string;
+}
+
+export interface BankBeneficiary {
+  id: string;
+  accountName: string;
+  accountNumber: string;
+  bankCode: string;
+  bankName: string;
+}
+
+export interface WithdrawPayload {
+  amount: number;
+  accountNumber: string;
+  accountName: string;
+  bankCode: string;
+  senderName: string;
+  bankName: string;
+  pin: string;
+}
+
+export interface VendorWithdrawal {
+  id: string;
+  amount: number;
+  status: string;
+  accountName: string;
+  accountNumber: string;
+  bankName: string;
+  createdAt: string | null;
+  reference: string;
+}
+
+export interface PagedResult<T> {
+  data: T[];
+  page: number;
+  perPage: number;
+  total: number;
+  lastPage: number;
+}
+
 export interface GetAvailableRidersParams {
   latitude?: number;
   longitude?: number;
@@ -323,6 +397,149 @@ function normalizeVendor(raw: Record<string, unknown>): Vendor {
     longitude: (raw.longitude as number | string | null | undefined) ?? null,
     lat: (raw.lat as number | string | null | undefined) ?? null,
     lng: (raw.lng as number | string | null | undefined) ?? null,
+  };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+function firstText(...values: unknown[]): string {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim()) return value.trim();
+    if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  }
+  return "";
+}
+
+function firstNumber(...values: unknown[]): number {
+  for (const value of values) {
+    if (typeof value === "number" && Number.isFinite(value)) return value;
+    if (typeof value === "string" && value.trim()) {
+      const parsed = Number(value.replace(/,/g, ""));
+      if (Number.isFinite(parsed)) return parsed;
+    }
+  }
+  return 0;
+}
+
+function optionalBool(value: unknown): boolean | null {
+  if (typeof value === "boolean") return value;
+  if (value === 1 || value === "1" || value === "true") return true;
+  if (value === 0 || value === "0" || value === "false") return false;
+  return null;
+}
+
+function unwrapRows(payload: unknown): Record<string, unknown>[] {
+  if (Array.isArray(payload)) return payload.filter(isRecord);
+  const root = isRecord(payload) ? payload : {};
+  if (Array.isArray(root.data)) return root.data.filter(isRecord);
+  const nested = isRecord(root.data) ? root.data : null;
+  if (nested && Array.isArray(nested.data)) return nested.data.filter(isRecord);
+  if (nested && Array.isArray(nested.banks)) return nested.banks.filter(isRecord);
+  if (nested && Array.isArray(nested.beneficiaries)) return nested.beneficiaries.filter(isRecord);
+  return [];
+}
+
+function unwrapListPage(payload: unknown): {
+  rows: Record<string, unknown>[];
+  page: number;
+  perPage: number;
+  total: number;
+  lastPage: number;
+} {
+  const root = isRecord(payload) ? payload : {};
+  const nested = isRecord(root.data) ? root.data : null;
+  const pageSource =
+    nested && (Array.isArray(nested.data) || "current_page" in nested || "last_page" in nested)
+      ? nested
+      : root;
+  const rows = Array.isArray(pageSource.data)
+    ? pageSource.data.filter(isRecord)
+    : unwrapRows(payload);
+  const perPage = firstNumber(pageSource.per_page, pageSource.limit) || 15;
+  const total = firstNumber(pageSource.total, rows.length);
+  const lastPage = Math.max(1, firstNumber(pageSource.last_page) || Math.ceil(total / perPage) || 1);
+  return {
+    rows,
+    page: firstNumber(pageSource.current_page, pageSource.page) || 1,
+    perPage,
+    total,
+    lastPage,
+  };
+}
+
+function normalizeWallet(payload: unknown): VendorWallet {
+  const root = isRecord(payload) ? payload : {};
+  const data = isRecord(root.data) ? root.data : root;
+  const feeRaw = data.fee ?? data.bank_fee ?? data.withdrawal_fee;
+  return {
+    balance: firstNumber(
+      data.balance,
+      data.earnings,
+      data.earnings_balance,
+      data.available_balance,
+      data.wallet_balance
+    ),
+    currency: firstText(data.currency) || "NGN",
+    canWithdraw: optionalBool(data.can_withdraw),
+    fee: feeRaw == null || feeRaw === "" ? null : firstNumber(feeRaw),
+    reason: firstText(data.reason, data.withdraw_message) || null,
+  };
+}
+
+function normalizeTransaction(row: Record<string, unknown>, index: number): VendorTransaction {
+  let amount = firstNumber(row.amount, row.value);
+  const rawType = firstText(row.type, row.transaction_type, row.entry_type).toLowerCase();
+  let type: VendorTransaction["type"] = rawType || "credit";
+  if (rawType.includes("debit") || rawType === "dr") type = "debit";
+  else if (rawType.includes("credit") || rawType === "cr") type = "credit";
+  if (amount < 0) {
+    type = "debit";
+    amount = Math.abs(amount);
+  }
+  return {
+    id: firstText(row.id, row.reference) || `transaction-${index}`,
+    type,
+    amount,
+    description: firstText(row.description, row.narration, row.remark, row.title) || "Transaction",
+    status: firstText(row.status) || "",
+    createdAt: firstText(row.created_at, row.date) || null,
+    reference: firstText(row.reference, row.reference_id),
+  };
+}
+
+function normalizeBank(row: Record<string, unknown>): VendorBank | null {
+  const code = firstText(row.code, row.bank_code, row.bankCode);
+  const name = firstText(row.name, row.bank_name, row.bankName);
+  if (!code || !name) return null;
+  return { code, name };
+}
+
+function normalizeBeneficiary(row: Record<string, unknown>, index: number): BankBeneficiary | null {
+  const accountNumber = firstText(row.account_number, row.accountNumber);
+  const bankCode = firstText(row.bank_code, row.bankCode);
+  const accountName = firstText(row.account_name, row.accountName);
+  if (!accountNumber || !bankCode || !accountName) return null;
+  return {
+    id: firstText(row.id) || `${bankCode}-${accountNumber}-${index}`,
+    accountName,
+    accountNumber,
+    bankCode,
+    bankName: firstText(row.bank_name, row.bankName),
+  };
+}
+
+function normalizeWithdrawal(row: Record<string, unknown>, index: number): VendorWithdrawal {
+  return {
+    id: firstText(row.id, row.reference) || `withdrawal-${index}`,
+    amount: Math.abs(firstNumber(row.amount)),
+    status: firstText(row.status) || "pending",
+    accountName: firstText(row.account_name, row.accountName),
+    accountNumber: firstText(row.account_number, row.accountNumber),
+    bankName: firstText(row.bank_name, row.bankName),
+    createdAt: firstText(row.created_at, row.date) || null,
+    reference: firstText(row.reference),
   };
 }
 
@@ -1194,6 +1411,87 @@ async getDashboardMetrics(params?: {
       reason ? { reason } : {}
     );
     return res.data.data;
+  },
+
+  // ── Earnings wallet ────────────────────────
+
+  /** Earnings balance for the signed-in vendor admin. */
+  async getWallet(): Promise<VendorWallet> {
+    const res = await client.get<unknown>("/vendor_admin/wallet");
+    return normalizeWallet(res.data);
+  },
+
+  /** This admin's wallet credits and debits. */
+  async getTransactions(params: {
+    page?: number;
+    per_page?: number;
+    type?: "credit" | "debit";
+  }): Promise<PagedResult<VendorTransaction>> {
+    const res = await client.get<unknown>("/vendor_admin/transactions", { params });
+    const page = unwrapListPage(res.data);
+    return {
+      ...page,
+      data: page.rows.map(normalizeTransaction),
+    };
+  },
+
+  /** Banks available for a payout. */
+  async getBanks(): Promise<VendorBank[]> {
+    const res = await client.get<unknown>("/vendor_admin/banks");
+    return unwrapRows(res.data).map(normalizeBank).filter((bank): bank is VendorBank => bank != null);
+  },
+
+  /** Resolve an account name for a bank and account number. */
+  async lookupBankAccount(accountNumber: string, bankCode: string): Promise<BankAccountLookup> {
+    const res = await client.get<unknown>("/vendor_admin/banks/lookup", {
+      params: {
+        account_number: accountNumber,
+        bank_code: bankCode,
+      },
+    });
+    const root = isRecord(res.data) ? res.data : {};
+    const data = isRecord(root.data) ? root.data : root;
+    const accountName = firstText(data.account_name, data.accountName, data.name);
+    if (!accountName) {
+      throw new ApiError("Could not find that account", 422);
+    }
+    return {
+      accountName,
+      accountNumber: firstText(data.account_number, data.accountNumber) || accountNumber,
+      bankCode: firstText(data.bank_code, data.bankCode) || bankCode,
+    };
+  },
+
+  /** Save a bank account for later withdrawals. */
+  async saveBankBeneficiary(data: SaveBankBeneficiaryPayload): Promise<void> {
+    await client.post<ApiResponse<unknown>>("/vendor_admin/banks", data);
+  },
+
+  /** Saved payout accounts. */
+  async getBankBeneficiaries(): Promise<BankBeneficiary[]> {
+    const res = await client.get<unknown>("/vendor_admin/banks/beneficiaries");
+    return unwrapRows(res.data)
+      .map(normalizeBeneficiary)
+      .filter((account): account is BankBeneficiary => account != null);
+  },
+
+  /** Send earnings to a bank. Store admin only. */
+  async withdraw(data: WithdrawPayload): Promise<string> {
+    const res = await client.post<ApiResponse<unknown>>("/vendor_admin/withdraw", data);
+    return res.data.message ?? "Withdrawal submitted.";
+  },
+
+  /** Past withdrawals for the store admin. */
+  async getWithdrawals(params?: {
+    page?: number;
+    per_page?: number;
+  }): Promise<PagedResult<VendorWithdrawal>> {
+    const res = await client.get<unknown>("/vendor_admin/withdrawals", { params });
+    const page = unwrapListPage(res.data);
+    return {
+      ...page,
+      data: page.rows.map(normalizeWithdrawal),
+    };
   },
 
 };

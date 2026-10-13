@@ -196,7 +196,7 @@ function RegisterPage() {
 
     return (
         <div className="bg-background flex min-h-screen items-center justify-center p-4 py-10">
-            <div className="w-full max-w-md space-y-16">
+            <div className="w-full max-w-md space-y-10">
                 <div className="flex flex-col items-center gap-3">
                     <img src="/gada_logo.png" alt="Logo" className="w-48" />
                 </div>
@@ -408,36 +408,8 @@ function RegisterPage() {
                                     )}
                                 </div>
 
-                                <div className="grid grid-cols-2 gap-3">
-                                    <div className="space-y-1.5">
-                                        <Label htmlFor="latitude">Latitude</Label>
-                                        <Input
-                                            id="latitude"
-                                            readOnly
-                                            value={latitude}
-                                            placeholder="From address or map"
-                                            aria-invalid={!!errors.latitude}
-                                        />
-                                        {errors.latitude && (
-                                            <p className="text-destructive text-xs">{errors.latitude.message}</p>
-                                        )}
-                                    </div>
-                                    <div className="space-y-1.5">
-                                        <Label htmlFor="longitude">Longitude</Label>
-                                        <Input
-                                            id="longitude"
-                                            readOnly
-                                            value={longitude}
-                                            placeholder="From address or map"
-                                            aria-invalid={!!errors.longitude}
-                                        />
-                                        {errors.longitude && (
-                                            <p className="text-destructive text-xs">{errors.longitude.message}</p>
-                                        )}
-                                    </div>
-                                </div>
                                 <p className="text-muted-foreground text-xs">
-                                    Pick a suggested address or drop a pin on the map. Coordinates fill in from that location.
+                                    Pick a suggested address or drop a pin on the map.
                                 </p>
 
                                 {serverError && (

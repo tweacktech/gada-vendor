@@ -21,6 +21,7 @@ import { Route as AuthenticatedSettingsIndexRouteImport } from './routes/_authen
 import { Route as AuthenticatedOrdersIndexRouteImport } from './routes/_authenticated/orders/index'
 import { Route as AuthenticatedNotificationsIndexRouteImport } from './routes/_authenticated/notifications/index'
 import { Route as AuthenticatedMarketplaceIndexRouteImport } from './routes/_authenticated/marketplace/index'
+import { Route as AuthenticatedEarningsIndexRouteImport } from './routes/_authenticated/earnings/index'
 import { Route as AuthenticatedOrdersCreateRouteImport } from './routes/_authenticated/orders/create'
 import { Route as AuthenticatedOrdersOrderIdRouteImport } from './routes/_authenticated/orders/$orderId'
 import { Route as AuthenticatedMarketplaceOrdersOrderIdRouteImport } from './routes/_authenticated/marketplace/orders/$orderId'
@@ -89,6 +90,12 @@ const AuthenticatedMarketplaceIndexRoute =
     path: '/marketplace/',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedEarningsIndexRoute =
+  AuthenticatedEarningsIndexRouteImport.update({
+    id: '/earnings/',
+    path: '/earnings/',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedOrdersCreateRoute =
   AuthenticatedOrdersCreateRouteImport.update({
     id: '/orders/create',
@@ -117,6 +124,7 @@ export interface FileRoutesByFullPath {
   '/set-password': typeof SetPasswordRoute
   '/orders/$orderId': typeof AuthenticatedOrdersOrderIdRoute
   '/orders/create': typeof AuthenticatedOrdersCreateRoute
+  '/earnings/': typeof AuthenticatedEarningsIndexRoute
   '/marketplace/': typeof AuthenticatedMarketplaceIndexRoute
   '/notifications/': typeof AuthenticatedNotificationsIndexRoute
   '/orders/': typeof AuthenticatedOrdersIndexRoute
@@ -133,6 +141,7 @@ export interface FileRoutesByTo {
   '/': typeof AuthenticatedIndexRoute
   '/orders/$orderId': typeof AuthenticatedOrdersOrderIdRoute
   '/orders/create': typeof AuthenticatedOrdersCreateRoute
+  '/earnings': typeof AuthenticatedEarningsIndexRoute
   '/marketplace': typeof AuthenticatedMarketplaceIndexRoute
   '/notifications': typeof AuthenticatedNotificationsIndexRoute
   '/orders': typeof AuthenticatedOrdersIndexRoute
@@ -151,6 +160,7 @@ export interface FileRoutesById {
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/orders/$orderId': typeof AuthenticatedOrdersOrderIdRoute
   '/_authenticated/orders/create': typeof AuthenticatedOrdersCreateRoute
+  '/_authenticated/earnings/': typeof AuthenticatedEarningsIndexRoute
   '/_authenticated/marketplace/': typeof AuthenticatedMarketplaceIndexRoute
   '/_authenticated/notifications/': typeof AuthenticatedNotificationsIndexRoute
   '/_authenticated/orders/': typeof AuthenticatedOrdersIndexRoute
@@ -169,6 +179,7 @@ export interface FileRouteTypes {
     | '/set-password'
     | '/orders/$orderId'
     | '/orders/create'
+    | '/earnings/'
     | '/marketplace/'
     | '/notifications/'
     | '/orders/'
@@ -185,6 +196,7 @@ export interface FileRouteTypes {
     | '/'
     | '/orders/$orderId'
     | '/orders/create'
+    | '/earnings'
     | '/marketplace'
     | '/notifications'
     | '/orders'
@@ -202,6 +214,7 @@ export interface FileRouteTypes {
     | '/_authenticated/'
     | '/_authenticated/orders/$orderId'
     | '/_authenticated/orders/create'
+    | '/_authenticated/earnings/'
     | '/_authenticated/marketplace/'
     | '/_authenticated/notifications/'
     | '/_authenticated/orders/'
@@ -305,6 +318,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedMarketplaceIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/earnings/': {
+      id: '/_authenticated/earnings/'
+      path: '/earnings'
+      fullPath: '/earnings/'
+      preLoaderRoute: typeof AuthenticatedEarningsIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/orders/create': {
       id: '/_authenticated/orders/create'
       path: '/orders/create'
@@ -333,6 +353,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
   AuthenticatedOrdersOrderIdRoute: typeof AuthenticatedOrdersOrderIdRoute
   AuthenticatedOrdersCreateRoute: typeof AuthenticatedOrdersCreateRoute
+  AuthenticatedEarningsIndexRoute: typeof AuthenticatedEarningsIndexRoute
   AuthenticatedMarketplaceIndexRoute: typeof AuthenticatedMarketplaceIndexRoute
   AuthenticatedNotificationsIndexRoute: typeof AuthenticatedNotificationsIndexRoute
   AuthenticatedOrdersIndexRoute: typeof AuthenticatedOrdersIndexRoute
@@ -345,6 +366,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
   AuthenticatedOrdersOrderIdRoute: AuthenticatedOrdersOrderIdRoute,
   AuthenticatedOrdersCreateRoute: AuthenticatedOrdersCreateRoute,
+  AuthenticatedEarningsIndexRoute: AuthenticatedEarningsIndexRoute,
   AuthenticatedMarketplaceIndexRoute: AuthenticatedMarketplaceIndexRoute,
   AuthenticatedNotificationsIndexRoute: AuthenticatedNotificationsIndexRoute,
   AuthenticatedOrdersIndexRoute: AuthenticatedOrdersIndexRoute,
