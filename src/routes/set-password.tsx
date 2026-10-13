@@ -126,7 +126,7 @@ function SetPasswordPage() {
         <div className="bg-background flex min-h-screen items-center justify-center p-4">
             <div className="w-full max-w-sm space-y-8">
                 <div className="flex flex-col items-center gap-3">
-                    <img src="/gadaride-logo.png" alt="Logo" className="w-24" />
+                    <img src="/gada_logo.png" alt="Logo" className="w-24" />
                 </div>
 
                 <Card>

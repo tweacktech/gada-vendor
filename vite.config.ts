@@ -14,11 +14,11 @@ export default defineConfig({
     VitePWA({
       registerType: "autoUpdate",
       injectRegister: "auto",
-      includeAssets: ["favicon.ico", "apple-touch-icon.png", "gada_logo.png", "gadaride-logo.png"],
+      includeAssets: ["favicon.ico", "apple-touch-icon.png", "gada_logo.png"],
       manifest: {
         id: "/",
-        name: "Gadaride Dashboard",
-        short_name: "Gadaride",
+        name: "VendorMP",
+        short_name: "VendorMP",
         description: "Gadaride logistics dashboard — manage orders, riders and vendors.",
         theme_color: "#0D2447",
         background_color: "#ffffff",

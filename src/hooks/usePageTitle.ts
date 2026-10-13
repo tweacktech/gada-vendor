@@ -1,6 +1,6 @@
 import { useEffect } from "react"
 
-const APP_TITLE_PREFIX = "Gadaride"
+const APP_TITLE_PREFIX = "VendorMP"
 
 export function usePageTitle(pageTitle?: string) {
   useEffect(() => {
