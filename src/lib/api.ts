@@ -441,6 +441,15 @@ function unwrapRows(payload: unknown): Record<string, unknown>[] {
   return [];
 }
 
+const LIST_KEYS = ["transactions", "withdrawals", "data", "banks", "beneficiaries", "earning_accounts", "accounts"] as const;
+
+function rowsFrom(source: Record<string, unknown>): Record<string, unknown>[] | null {
+  for (const key of LIST_KEYS) {
+    if (Array.isArray(source[key])) return source[key].filter(isRecord);
+  }
+  return null;
+}
+
 function unwrapListPage(payload: unknown): {
   rows: Record<string, unknown>[];
   page: number;
@@ -450,19 +459,19 @@ function unwrapListPage(payload: unknown): {
 } {
   const root = isRecord(payload) ? payload : {};
   const nested = isRecord(root.data) ? root.data : null;
-  const pageSource =
-    nested && (Array.isArray(nested.data) || "current_page" in nested || "last_page" in nested)
-      ? nested
-      : root;
-  const rows = Array.isArray(pageSource.data)
-    ? pageSource.data.filter(isRecord)
-    : unwrapRows(payload);
-  const perPage = firstNumber(pageSource.per_page, pageSource.limit) || 15;
-  const total = firstNumber(pageSource.total, rows.length);
-  const lastPage = Math.max(1, firstNumber(pageSource.last_page) || Math.ceil(total / perPage) || 1);
+  const container = nested && rowsFrom(nested) ? nested : root;
+  const rows = rowsFrom(container) ?? unwrapRows(payload);
+  const meta = isRecord(container.meta)
+    ? container.meta
+    : isRecord(root.meta)
+      ? root.meta
+      : container;
+  const perPage = firstNumber(meta.per_page, meta.limit, container.per_page) || 15;
+  const total = firstNumber(meta.total, container.total, rows.length);
+  const lastPage = Math.max(1, firstNumber(meta.last_page, container.last_page) || Math.ceil(total / perPage) || 1);
   return {
     rows,
-    page: firstNumber(pageSource.current_page, pageSource.page) || 1,
+    page: firstNumber(meta.current_page, meta.page, container.current_page) || 1,
     perPage,
     total,
     lastPage,
@@ -499,13 +508,13 @@ function normalizeTransaction(row: Record<string, unknown>, index: number): Vend
     amount = Math.abs(amount);
   }
   return {
-    id: firstText(row.id, row.reference) || `transaction-${index}`,
+    id: firstText(row.id, row.transaction_id) || `transaction-${index}`,
     type,
     amount,
-    description: firstText(row.description, row.narration, row.remark, row.title) || "Transaction",
-    status: firstText(row.status) || "",
-    createdAt: firstText(row.created_at, row.date) || null,
-    reference: firstText(row.reference, row.reference_id),
+    description: firstText(row.transaction_title, row.description, row.narration, row.remark, row.title) || "Transaction",
+    status: firstText(row.transaction_status, row.status) || "",
+    createdAt: firstText(row.date_of_transaction, row.created_at, row.date) || null,
+    reference: firstText(row.transaction_ref, row.transaction_id, row.reference, row.reference_id),
   };
 }
 
