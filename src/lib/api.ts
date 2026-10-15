@@ -450,6 +450,69 @@ function rowsFrom(source: Record<string, unknown>): Record<string, unknown>[] | 
   return null;
 }
 
+function arrayOfRecords(value: unknown): Record<string, unknown>[] | null {
+  if (Array.isArray(value)) return value.filter(isRecord);
+  if (isRecord(value) && Array.isArray(value.data)) return value.data.filter(isRecord);
+  return null;
+}
+
+function looksLikeTransaction(row: Record<string, unknown>): boolean {
+  return (
+    "transaction_type" in row ||
+    "transaction_title" in row ||
+    "transaction_status" in row ||
+    "transaction_id" in row ||
+    "date_of_transaction" in row
+  );
+}
+
+function metaFrom(layer: Record<string, unknown>, fallback: Record<string, unknown>): Record<string, unknown> {
+  if (isRecord(layer.meta)) return layer.meta;
+  if (isRecord(layer.transactions) && isRecord((layer.transactions as { meta?: unknown }).meta)) {
+    return (layer.transactions as { meta: Record<string, unknown> }).meta;
+  }
+  if (isRecord(fallback.meta)) return fallback.meta;
+  return layer;
+}
+
+/** Earnings history is `{ transactions, meta }`, sometimes nested under `data`. */
+function transactionRows(payload: unknown): {
+  rows: Record<string, unknown>[];
+  meta: Record<string, unknown>;
+} {
+  const root = isRecord(payload) ? payload : {};
+  const found = findTransactionList(root, root, 0);
+  if (found) return found;
+  const page = unwrapListPage(payload);
+  return { rows: page.rows, meta: { current_page: page.page, per_page: page.perPage, total: page.total, last_page: page.lastPage } };
+}
+
+function findTransactionList(
+  value: unknown,
+  root: Record<string, unknown>,
+  depth: number
+): { rows: Record<string, unknown>[]; meta: Record<string, unknown> } | null {
+  if (depth > 5 || !isRecord(value)) return null;
+
+  const named = arrayOfRecords(value.transactions);
+  if (named && named.length > 0) {
+    return { rows: named, meta: metaFrom(value, root) };
+  }
+
+  const direct = arrayOfRecords(value.data);
+  if (direct && direct.some(looksLikeTransaction)) {
+    return { rows: direct.filter(looksLikeTransaction), meta: metaFrom(value, root) };
+  }
+
+  for (const child of Object.values(value)) {
+    if (!isRecord(child)) continue;
+    const nested = findTransactionList(child, root, depth + 1);
+    if (nested) return nested;
+  }
+
+  return null;
+}
+
 function unwrapListPage(payload: unknown): {
   rows: Record<string, unknown>[];
   page: number;
@@ -1437,10 +1500,16 @@ async getDashboardMetrics(params?: {
     type?: "credit" | "debit";
   }): Promise<PagedResult<VendorTransaction>> {
     const res = await client.get<unknown>("/vendor_admin/transactions", { params });
-    const page = unwrapListPage(res.data);
+    const { rows, meta } = transactionRows(res.data);
+    const perPage = firstNumber(meta.per_page, meta.limit) || 15;
+    const total = firstNumber(meta.total, rows.length);
+    const lastPage = Math.max(1, firstNumber(meta.last_page) || Math.ceil(total / perPage) || 1);
     return {
-      ...page,
-      data: page.rows.map(normalizeTransaction),
+      data: rows.map(normalizeTransaction),
+      page: firstNumber(meta.current_page, meta.page) || 1,
+      perPage,
+      total,
+      lastPage,
     };
   },
 

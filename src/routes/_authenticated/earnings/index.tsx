@@ -127,49 +127,44 @@ function EarningsPage() {
                 </p>
             </div>
 
-            <div className="grid gap-4 lg:grid-cols-[minmax(0,280px)_1fr]">
-                <Card>
-                    <CardHeader>
+            <Card className="overflow-visible">
+                <CardHeader className="flex flex-row items-center justify-between gap-4">
+                    <div>
                         <CardDescription>Available earnings</CardDescription>
                         {walletLoading ? (
-                            <Skeleton className="h-9 w-36" />
+                            <Skeleton className="mt-2 h-9 w-36" />
                         ) : (
                             <CardTitle className="text-3xl">
                                 {wallet ? formatNaira(wallet.balance) : "—"}
                             </CardTitle>
                         )}
-                    </CardHeader>
-                    <CardContent className="text-sm">
+                    </div>
+                    <div className="text-muted-foreground max-w-sm text-right text-sm">
                         {walletError && <p className="text-destructive">{walletError}</p>}
                         {!walletError && !isStoreAdmin && (
-                            <p className="text-muted-foreground">Only the vendor admin can withdraw.</p>
+                            <p>Only the vendor admin can withdraw.</p>
                         )}
                         {!walletError && isStoreAdmin && wallet?.canWithdraw === false && (
-                            <p className="text-muted-foreground">
+                            <p>
                                 {wallet.reason ?? "Withdrawals are unavailable until you have a transaction PIN and enough earnings to cover the amount and the bank fee."}
                             </p>
                         )}
                         {!walletError && isStoreAdmin && wallet?.fee != null && (
-                            <p className="text-muted-foreground">Bank fee: {formatNaira(wallet.fee)}</p>
+                            <p>Bank fee: {formatNaira(wallet.fee)}</p>
                         )}
-                    </CardContent>
-                </Card>
+                    </div>
+                </CardHeader>
+            </Card>
 
-                {isStoreAdmin && (
-                    <WithdrawCard
-                        balance={wallet?.balance ?? 0}
-                        fee={wallet?.fee ?? null}
-                        canWithdraw={wallet?.canWithdraw ?? null}
-                        onCompleted={() => setRefreshKey((value) => value + 1)}
-                    />
-                )}
-            </div>
-
-            <Card>
+            <Card className="overflow-visible">
                 <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                         <CardTitle>Transactions</CardTitle>
-                        <CardDescription>Credits and debits on this admin account.</CardDescription>
+                        <CardDescription>
+                            {transactions
+                                ? `${transactions.total} on this account`
+                                : "Credits and debits on this admin account."}
+                        </CardDescription>
                     </div>
                     <Select
                         value={typeFilter}
@@ -188,7 +183,7 @@ function EarningsPage() {
                         </SelectContent>
                     </Select>
                 </CardHeader>
-                <CardContent className="p-0">
+                <CardContent className="shrink-0 px-0">
                     {transactionsLoading ? (
                         <div className="space-y-3 p-4">
                             <Skeleton className="h-10 w-full" />
@@ -203,42 +198,42 @@ function EarningsPage() {
                             <p className="text-sm font-medium">No transactions yet</p>
                         </div>
                     ) : (
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead className="pl-4">Date</TableHead>
-                                    <TableHead>Description</TableHead>
-                                    <TableHead>Type</TableHead>
-                                    <TableHead>Status</TableHead>
-                                    <TableHead className="pr-4 text-right">Amount</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {transactions.data.map((transaction) => (
-                                    <TableRow key={transaction.id}>
-                                        <TableCell className="pl-4">{formatWhen(transaction.createdAt)}</TableCell>
-                                        <TableCell className="max-w-xs whitespace-normal">
-                                            <div className="font-medium">{transaction.description}</div>
-                                            {transaction.reference && (
-                                                <div className="text-muted-foreground text-xs">{transaction.reference}</div>
-                                            )}
-                                        </TableCell>
-                                        <TableCell className="capitalize">{transaction.type}</TableCell>
-                                        <TableCell>
-                                            {transaction.status ? (
-                                                <Badge variant="secondary" className="capitalize">{transaction.status}</Badge>
-                                            ) : (
-                                                "—"
-                                            )}
-                                        </TableCell>
-                                        <TableCell className={`pr-4 text-right font-medium ${transaction.type === "debit" ? "text-destructive" : ""}`}>
-                                            {transaction.type === "debit" ? "−" : "+"}
-                                            {formatNaira(transaction.amount)}
-                                        </TableCell>
+                        <table className="w-full border-t text-sm">
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead className="pl-4 whitespace-normal">Date</TableHead>
+                                        <TableHead className="whitespace-normal">Description</TableHead>
+                                        <TableHead className="whitespace-normal">Type</TableHead>
+                                        <TableHead className="whitespace-normal">Status</TableHead>
+                                        <TableHead className="pr-4 text-right whitespace-normal">Amount</TableHead>
                                     </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
+                                </TableHeader>
+                                <TableBody>
+                                    {transactions.data.map((transaction) => (
+                                        <TableRow key={transaction.id}>
+                                            <TableCell className="pl-4 whitespace-normal">{formatWhen(transaction.createdAt)}</TableCell>
+                                            <TableCell className="max-w-xs whitespace-normal">
+                                                <div className="font-medium">{transaction.description}</div>
+                                                {transaction.reference && (
+                                                    <div className="text-muted-foreground text-xs">{transaction.reference}</div>
+                                                )}
+                                            </TableCell>
+                                            <TableCell className="capitalize whitespace-normal">{transaction.type}</TableCell>
+                                            <TableCell className="whitespace-normal">
+                                                {transaction.status ? (
+                                                    <Badge variant="secondary" className="capitalize">{transaction.status}</Badge>
+                                                ) : (
+                                                    "—"
+                                                )}
+                                            </TableCell>
+                                            <TableCell className={`pr-4 text-right font-medium ${transaction.type === "debit" ? "text-destructive" : ""}`}>
+                                                {transaction.type === "debit" ? "−" : "+"}
+                                                {formatNaira(transaction.amount)}
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </table>
                     )}
                     {transactions && (
                         <Pager
@@ -249,6 +244,15 @@ function EarningsPage() {
                     )}
                 </CardContent>
             </Card>
+
+            {isStoreAdmin && (
+                <WithdrawCard
+                    balance={wallet?.balance ?? 0}
+                    fee={wallet?.fee ?? null}
+                    canWithdraw={wallet?.canWithdraw ?? null}
+                    onCompleted={() => setRefreshKey((value) => value + 1)}
+                />
+            )}
 
             {isStoreAdmin && <WithdrawalsCard refreshKey={refreshKey} />}
         </div>
