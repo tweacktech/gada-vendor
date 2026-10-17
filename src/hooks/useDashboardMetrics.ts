@@ -2,15 +2,7 @@
 import { useState, useEffect, useCallback } from "react"
 import { api } from "@/lib/api"
 import { dateFilterToParams, type DateFilterValue } from "@/lib/dateFilter"
-
-interface DashboardMetrics {
-    total_revenue: number
-    revenue_change_pct: number
-    total_orders: number
-    orders_change_pct: number
-    conversion_rate: number
-    conversion_change_pct: number
-}
+import type { DashboardMetrics } from "@/types/logistics"
 
 interface UseDashboardMetricsOptions {
     dateFilter?: DateFilterValue | null
@@ -26,7 +18,7 @@ export function useDashboardMetrics({ dateFilter = null }: UseDashboardMetricsOp
         setError(null)
 
         try {
-            const response = await api.getDashboardMetrics(dateFilterToParams(dateFilter))
+            const response = await api.getMarketplaceDashboardMetrics(dateFilterToParams(dateFilter, { all: true }))
             setMetrics(response)
         } catch (err) {
             setError(err instanceof Error ? err.message : "Failed to fetch metrics")

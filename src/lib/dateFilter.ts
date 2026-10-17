@@ -6,6 +6,7 @@ export type DateFilterValue =
     | { type: "custom"; startDate: Date; endDate: Date }
 
 export const DATE_FILTER_PRESETS: { value: string; label: string }[] = [
+    { value: "all", label: "All" },
     { value: "today", label: "Today" },
     { value: "yesterday", label: "Yesterday" },
     { value: "week", label: "Last 7 days" },
@@ -16,7 +17,7 @@ export const DATE_FILTER_PRESETS: { value: string; label: string }[] = [
 
 /** Human-readable label for a badge/pill showing the active filter. */
 export function getFilterLabel(filter: DateFilterValue | null): string {
-    if (!filter) return "All time"
+    if (!filter) return "All"
 
     if (filter.type === "custom") {
         return `${format(filter.startDate, "MMM d")} - ${format(filter.endDate, "MMM d")}`
@@ -38,8 +39,11 @@ export function getFilterLabel(filter: DateFilterValue | null): string {
  * Only "custom" ranges carry explicit start/end dates, since those come
  * from the date picker and the backend has no other way to know them.
  */
-export function dateFilterToParams(filter: DateFilterValue | null): Record<string, string> {
-    if (!filter) return {}
+export function dateFilterToParams(
+    filter: DateFilterValue | null,
+    options?: { all?: boolean }
+): Record<string, string> {
+    if (!filter) return options?.all ? { filter: "all" } : {}
 
     if (filter.type === "custom") {
         return {

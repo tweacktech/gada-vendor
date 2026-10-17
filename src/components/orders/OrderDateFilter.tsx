@@ -30,6 +30,11 @@ export function OrderDateFilter({ value, onChange }: OrderDateFilterProps) {
             setShowCalendar(true)
             return
         }
+        if (presetValue === "all") {
+            onChange(null)
+            setOpen(false)
+            return
+        }
         onChange({ type: presetValue as Exclude<DateFilterValue["type"], "custom"> })
         setOpen(false)
     }

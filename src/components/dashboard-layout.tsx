@@ -45,11 +45,12 @@ interface NavItem {
 
 const mainNavItems: NavItem[] = [
     { icon: LayoutDashboardIcon, label: "Dashboard", to: "/" },
-    { icon: ShoppingCartIcon, label: "Orders", to: "/orders" },
+    // { icon: ShoppingCartIcon, label: "Orders", to: "/orders" },
     // { icon: UsersIcon, label: "Customers", to: "/customers" },
     { icon: ShoppingBagIcon, label: "Marketplace", to: "/marketplace" },
-    { icon: StoreIcon, label: "Vendors", to: "/vendors" },
+   
     { icon: WalletIcon, label: "Earnings", to: "/earnings" },
+     { icon: StoreIcon, label: "Vendors", to: "/vendors" },
 ]
 
 const secondaryNavItems: NavItem[] = [

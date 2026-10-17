@@ -1,26 +1,36 @@
 import { useState, useEffect, useCallback } from "react";
-import { api, ApiError } from "@/lib/api";
+import { api, ApiError, type GetMarketplaceOrdersParams } from "@/lib/api";
 import { useMarketplaceLiveSync } from "@/hooks/useMarketplaceLiveSync";
+import { dateFilterToParams, type DateFilterValue } from "@/lib/dateFilter";
 import type {
   MarketplaceOrder,
   MarketplaceOrderStatus,
   MarketplaceOrderStatusChangedPayload,
 } from "@/types/marketplace";
 
+export type MarketplaceOrderListStatus = "pending" | "confirmed" | "preparing" | "completed";
+
 interface UseMarketplaceOrdersOptions {
   page?: number;
-  tab?: "pending" | "ongoing" | "completed";
+  statusFilter?: MarketplaceOrderListStatus;
+  dateFilter?: DateFilterValue | null;
+  minAmount?: string;
+  maxAmount?: string;
 }
 
-const PENDING_STATUSES = new Set(["pending", "paid"]);
-const ONGOING_STATUSES = new Set(["ongoing", "confirmed", "preparing", "on_the_way"]);
-const COMPLETED_STATUSES = new Set(["completed", "cancelled"]);
+function amountParam(value?: string): number | undefined {
+  if (!value?.trim()) return undefined;
+  const parsed = Number(value.replace(/,/g, ""));
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
 
-function matchesTab(status: string, tab?: UseMarketplaceOrdersOptions["tab"]) {
-  if (!tab) return true;
-  if (tab === "pending") return PENDING_STATUSES.has(status);
-  if (tab === "ongoing") return ONGOING_STATUSES.has(status);
-  return COMPLETED_STATUSES.has(status);
+const PENDING_STATUSES = new Set(["pending", "new", "paid"]);
+
+function matchesStatus(orderStatus: string, filter?: MarketplaceOrderListStatus) {
+  if (!filter) return true;
+  const normalized = orderStatus.toLowerCase();
+  if (filter === "pending") return PENDING_STATUSES.has(normalized);
+  return normalized === filter;
 }
 
 function sameOrder(order: MarketplaceOrder, payload: MarketplaceOrderStatusChangedPayload) {
@@ -33,7 +43,7 @@ function sameOrder(order: MarketplaceOrder, payload: MarketplaceOrderStatusChang
 function applyPayloadToOrders(
   orders: MarketplaceOrder[],
   payload: MarketplaceOrderStatusChangedPayload,
-  tab?: UseMarketplaceOrdersOptions["tab"]
+  status?: MarketplaceOrderListStatus
 ) {
   const exists = orders.some((order) => sameOrder(order, payload));
   const next = exists
@@ -47,14 +57,30 @@ function applyPayloadToOrders(
           : order
       )
     : orders;
-  return next.filter((order) => matchesTab(order.status, tab));
+  return next.filter((order) => matchesStatus(order.status, status));
 }
 
-export function useMarketplaceOrders({ page = 1, tab }: UseMarketplaceOrdersOptions = {}) {
+const PAGE_SIZE = 15;
+
+export function useMarketplaceOrders({
+  statusFilter,
+  dateFilter = null,
+  minAmount,
+  maxAmount,
+}: UseMarketplaceOrdersOptions = {}) {
   const [orders, setOrders] = useState<MarketplaceOrder[]>([]);
   const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [lastPage, setLastPage] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const filtersKey = `${statusFilter ?? ""}|${dateFilter ? JSON.stringify(dateFilter) : "all"}|${minAmount ?? ""}|${maxAmount ?? ""}`;
+  const [seenFilters, setSeenFilters] = useState(filtersKey);
+  if (seenFilters !== filtersKey) {
+    setSeenFilters(filtersKey);
+    setPage(1);
+  }
 
   const fetchOrders = useCallback(async (
     opts?: { silent?: boolean; payload?: MarketplaceOrderStatusChangedPayload }
@@ -65,16 +91,28 @@ export function useMarketplaceOrders({ page = 1, tab }: UseMarketplaceOrdersOpti
     }
 
     try {
-      const response = await api.getMarketplaceOrders({ page, tab });
+      const min = amountParam(minAmount);
+      const max = amountParam(maxAmount);
+      const params: GetMarketplaceOrdersParams = {
+        page,
+        limit: PAGE_SIZE,
+        per_page: PAGE_SIZE,
+        ...(statusFilter ? { status: statusFilter } : {}),
+        ...dateFilterToParams(dateFilter, { all: true }),
+        ...(min != null ? { min_amount: min } : {}),
+        ...(max != null ? { max_amount: max } : {}),
+      };
+      const response = await api.getMarketplaceOrders(params);
       const next = opts?.payload
-        ? applyPayloadToOrders(response.data || [], opts.payload, tab)
+        ? applyPayloadToOrders(response.data || [], opts.payload, statusFilter)
         : response.data || [];
       setOrders(next);
-      setTotal(response.total || next.length);
+      setTotal(response.total ?? next.length);
+      setLastPage(response.lastPage ?? Math.max(1, Math.ceil((response.total || next.length) / PAGE_SIZE)));
       setError(null);
     } catch (err) {
       if (opts?.payload) {
-        setOrders((current) => applyPayloadToOrders(current, opts.payload!, tab));
+        setOrders((current) => applyPayloadToOrders(current, opts.payload!, statusFilter));
       } else if (!opts?.silent) {
         if (err instanceof ApiError) {
           setError(`Failed to load marketplace orders: ${err.message} (${err.status})`);
@@ -83,11 +121,12 @@ export function useMarketplaceOrders({ page = 1, tab }: UseMarketplaceOrdersOpti
         }
         setOrders([]);
         setTotal(0);
+        setLastPage(1);
       }
     } finally {
       if (!opts?.silent) setIsLoading(false);
     }
-  }, [page, tab]);
+  }, [page, statusFilter, dateFilter, minAmount, maxAmount]);
 
   const applyStatus = useCallback(
     (orderId: string, status: MarketplaceOrderStatus | string) => {
@@ -98,20 +137,20 @@ export function useMarketplaceOrders({ page = 1, tab }: UseMarketplaceOrdersOpti
               ? { ...order, status: status as MarketplaceOrder["status"] }
               : order
           )
-          .filter((order) => matchesTab(order.status, tab))
+          .filter((order) => matchesStatus(order.status, statusFilter))
       );
     },
-    [tab]
+    [statusFilter]
   );
 
   const handleRealtime = useCallback(
     (payload?: MarketplaceOrderStatusChangedPayload) => {
       if (payload) {
-        setOrders((current) => applyPayloadToOrders(current, payload, tab));
+        setOrders((current) => applyPayloadToOrders(current, payload, statusFilter));
       }
       void fetchOrders({ silent: true, payload });
     },
-    [fetchOrders, tab]
+    [fetchOrders, statusFilter]
   );
 
   useEffect(() => {
@@ -120,5 +159,16 @@ export function useMarketplaceOrders({ page = 1, tab }: UseMarketplaceOrdersOpti
 
   useMarketplaceLiveSync(handleRealtime);
 
-  return { orders, total, isLoading, error, refetch: fetchOrders, applyStatus };
+  return {
+    orders,
+    total,
+    page,
+    lastPage,
+    limit: PAGE_SIZE,
+    isLoading,
+    error,
+    setPage,
+    refetch: fetchOrders,
+    applyStatus,
+  };
 }

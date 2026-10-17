@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router"
 import {
     ShoppingCartIcon,
     TrendingUpIcon,
+    UsersIcon,
     AlertCircleIcon,
     RefreshCwIcon,
     FilterIcon,
@@ -10,8 +11,8 @@ import { useState } from "react"
 import type { SVGProps } from "react"
 
 import StatisticsCard from "@/components/shadcn-studio/blocks/statistics-card-01"
-import { OrdersTable } from "@/components/orders-table"
-import { OrderDateFilter } from "@/components/orders/OrderDateFilter"
+import { MarketplaceOrdersTable } from "@/components/marketplace/marketplace-orders-table"
+import { MarketplaceOrderFilters } from "@/components/marketplace/marketplace-order-filters"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Button } from "@/components/ui/button"
@@ -49,14 +50,21 @@ const NairaIcon = (props: SVGProps<SVGSVGElement>) => (
 function DashboardPage() {
     usePageTitle("Dashboard")
 
-    // Single source of truth: both the stats cards and the deliveries table
-    // read from this. Changing it re-fetches both automatically.
-    const [dateFilter, setDateFilter] = useState<DateFilterValue | null>(null)
+    const [dateFilter, setDateFilter] = useState<DateFilterValue | null>({ type: "month" })
+    const [minAmount, setMinAmount] = useState("")
+    const [maxAmount, setMaxAmount] = useState("")
     const [refreshKey, setRefreshKey] = useState(0)
 
     const { metrics, isLoading, error, refetch } = useDashboardMetrics({ dateFilter })
 
-    const handleClearFilter = () => setDateFilter(null)
+    const handleClearFilter = () => {
+        setDateFilter({ type: "month" })
+        setMinAmount("")
+        setMaxAmount("")
+    }
+
+    const filtersActive =
+        (dateFilter != null && dateFilter.type !== "month") || minAmount.trim() !== "" || maxAmount.trim() !== ""
 
     const handleRefresh = () => {
         setRefreshKey((prev) => prev + 1)
@@ -70,7 +78,7 @@ function DashboardPage() {
                 <div>
                     <h1 className="text-2xl font-semibold">Dashboard</h1>
                     <p className="text-muted-foreground text-sm">
-                        Welcome back. Here's what's happening today.
+                        Marketplace performance for this store. Revenue and conversion count completed orders.
                     </p>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
@@ -98,9 +106,9 @@ function DashboardPage() {
             )}
 
             {/* Stats row */}
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 {isLoading ? (
-                    Array.from({ length: 3 }).map((_, i) => (
+                    Array.from({ length: 4 }).map((_, i) => (
                         <Card key={i} className="gap-4">
                             <CardHeader className="flex items-center">
                                 <Skeleton className="size-8 rounded-md" />
@@ -125,6 +133,12 @@ function DashboardPage() {
                             changePercentage={formatPct(metrics.revenue_change_pct)}
                         />
                         <StatisticsCard
+                            icon={<UsersIcon className="size-4" />}
+                            value={metrics.active_customers.toLocaleString()}
+                            title="Active Customers"
+                            changePercentage={formatPct(metrics.customers_change_pct)}
+                        />
+                        <StatisticsCard
                             icon={<ShoppingCartIcon className="size-4" />}
                             value={metrics.total_orders.toLocaleString()}
                             title="Total Orders"
@@ -140,29 +154,40 @@ function DashboardPage() {
                 ) : null}
             </div>
 
-            {/* Recent Deliveries table */}
             <Card>
                 <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex items-center gap-2">
-                        <span className="text-lg font-semibold">Recent Deliveries</span>
-                        {dateFilter && (
+                        <span className="text-lg font-semibold">Marketplace orders</span>
+                        {filtersActive && (
                             <Badge variant="secondary" className="gap-2 px-3 py-1">
                                 <FilterIcon className="size-3" />
                                 {getFilterLabel(dateFilter)}
                                 <button
                                     onClick={handleClearFilter}
                                     className="ml-1 hover:text-destructive"
-                                    aria-label="Clear filter"
+                                    aria-label="Clear filters"
                                 >
                                     ×
                                 </button>
                             </Badge>
                         )}
                     </div>
-                    <OrderDateFilter value={dateFilter} onChange={setDateFilter} />
+                    <MarketplaceOrderFilters
+                        dateFilter={dateFilter}
+                        onDateFilterChange={setDateFilter}
+                        minAmount={minAmount}
+                        maxAmount={maxAmount}
+                        onMinAmountChange={setMinAmount}
+                        onMaxAmountChange={setMaxAmount}
+                    />
                 </CardHeader>
-                <CardContent className="p-0">
-                    <OrdersTable key={refreshKey} dateFilter={dateFilter} />
+                <CardContent>
+                    <MarketplaceOrdersTable
+                        key={refreshKey}
+                        dateFilter={dateFilter}
+                        minAmount={minAmount}
+                        maxAmount={maxAmount}
+                    />
                 </CardContent>
             </Card>
         </>

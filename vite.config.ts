@@ -14,7 +14,7 @@ export default defineConfig({
     VitePWA({
       registerType: "autoUpdate",
       injectRegister: "auto",
-      includeAssets: ["favicon.ico", "apple-touch-icon.png", "gada_logo.png"],
+      includeAssets: ["favicon.ico", "apple-touch-icon.png", "gadaride-logo.png", "gada_logo.png"],
       manifest: {
         id: "/",
         name: "VendorMP",

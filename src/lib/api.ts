@@ -48,6 +48,7 @@ export interface PaginatedResponse<T> {
   total: number;
   page: number;
   limit: number;
+  lastPage?: number;
 }
 
 // ─────────────────────────────────────────────
@@ -308,6 +309,12 @@ export interface GetMarketplaceOrdersParams {
   limit?: number;
   status?: string;
   tab?: "pending" | "ongoing" | "completed";
+  filter?: string;
+  start_date?: string;
+  end_date?: string;
+  min_amount?: number;
+  max_amount?: number;
+  per_page?: number;
 }
 
 export interface GetMarketplaceProductsParams {
@@ -454,6 +461,21 @@ function arrayOfRecords(value: unknown): Record<string, unknown>[] | null {
   if (Array.isArray(value)) return value.filter(isRecord);
   if (isRecord(value) && Array.isArray(value.data)) return value.data.filter(isRecord);
   return null;
+}
+
+function normalizeDashboardMetrics(payload: unknown): DashboardMetrics {
+  const root = isRecord(payload) ? payload : {};
+  const data = isRecord(root.data) ? root.data : root;
+  return {
+    total_revenue: firstNumber(data.total_revenue),
+    active_customers: firstNumber(data.active_customers),
+    total_orders: firstNumber(data.total_orders),
+    conversion_rate: firstNumber(data.conversion_rate),
+    revenue_change_pct: firstNumber(data.revenue_change_pct),
+    customers_change_pct: firstNumber(data.customers_change_pct),
+    orders_change_pct: firstNumber(data.orders_change_pct),
+    conversion_change_pct: firstNumber(data.conversion_change_pct),
+  };
 }
 
 function looksLikeTransaction(row: Record<string, unknown>): boolean {
@@ -1199,8 +1221,24 @@ async getDashboardMetrics(params?: {
     "/vendor_admin/dashboard/metrics",
     { params }
   )
-  return res.data.data
+  return normalizeDashboardMetrics(res.data)
 },
+
+  /** Marketplace metrics for the signed-in vendor. Same shape as delivery metrics. */
+  async getMarketplaceDashboardMetrics(params?: {
+    filter?: string
+    start_date?: string
+    end_date?: string
+  }): Promise<DashboardMetrics> {
+    if (DEMO_MODE) {
+      return Promise.resolve(DUMMY_METRICS)
+    }
+    const res = await client.get<unknown>(
+      "/vendor_admin/dashboard/marketplace-metrics",
+      { params }
+    )
+    return normalizeDashboardMetrics(res.data)
+  },
 
   // ── Marketplace: Orders ────────────────────
   // Scoped server-side to the logged-in vendor admin's vendor.
@@ -1209,17 +1247,21 @@ async getDashboardMetrics(params?: {
   async getMarketplaceOrders(
     params?: GetMarketplaceOrdersParams
   ): Promise<PaginatedResponse<MarketplaceOrder>> {
-    const res = await client.get<ApiResponse<MarketplaceOrder[]> & Partial<PaginatedResponse<MarketplaceOrder>>>(
-      "/vendor_admin/marketplace-orders",
-      { params }
-    );
-    const payload = res.data;
-    const rows = Array.isArray(payload.data) ? payload.data : [];
+    const res = await client.get<unknown>("/vendor_admin/marketplace-orders", { params });
+    const body = isRecord(res.data) ? res.data : {};
+    const rows = Array.isArray(body.data) ? body.data.filter(isRecord) : [];
+    const meta = isRecord(body.meta) ? body.meta : body;
+    const limit = firstNumber(meta.per_page, meta.limit, body.per_page, body.limit, params?.limit, params?.per_page) || 15;
+    const totalValue = meta.total ?? body.total;
+    const total = totalValue == null ? rows.length : firstNumber(totalValue);
+    const page = firstNumber(meta.current_page, meta.page, body.current_page, body.page, params?.page) || 1;
+    const lastPage = Math.max(1, firstNumber(meta.last_page, body.last_page) || Math.ceil(total / limit) || 1);
     return {
       data: rows.map((order) => normalizeMarketplaceOrder(order)),
-      total: payload.total ?? rows.length,
-      page: payload.page ?? params?.page ?? 1,
-      limit: payload.limit ?? 20,
+      total,
+      page,
+      limit,
+      lastPage,
     };
   },
 

@@ -20,9 +20,19 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table"
-import { ChefHatIcon, EyeIcon, MoreHorizontalIcon, RefreshCwIcon, UserRoundPlusIcon, XCircleIcon } from "lucide-react"
+import { ChefHatIcon, ChevronLeftIcon, ChevronRightIcon, EyeIcon, MoreHorizontalIcon, RefreshCwIcon, UserRoundPlusIcon, XCircleIcon } from "lucide-react"
 
-import { useMarketplaceOrders } from "@/hooks/useMarketplaceOrders"
+import { useMarketplaceOrders, type MarketplaceOrderListStatus } from "@/hooks/useMarketplaceOrders"
+import { usePagination } from "@/hooks/use-pagination"
+import { Pagination, PaginationContent, PaginationEllipsis, PaginationItem } from "@/components/ui/pagination"
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select"
+import type { DateFilterValue } from "@/lib/dateFilter"
 import { api, ApiError } from "@/lib/api"
 import { emitMarketplaceOrderRefresh } from "@/lib/marketplace-realtime"
 import type { MarketplaceOrder } from "@/types/marketplace"
@@ -55,12 +65,35 @@ function isConfirmed(order: MarketplaceOrder) {
     return order.status.toLowerCase() === "confirmed"
 }
 
+const STATUS_FILTERS: { value: "all" | MarketplaceOrderListStatus; label: string }[] = [
+    { value: "all", label: "All" },
+    { value: "pending", label: "Pending" },
+    { value: "confirmed", label: "Confirmed" },
+    { value: "preparing", label: "Preparing" },
+    { value: "completed", label: "Completed" },
+]
+
 interface Props {
-    tab?: "pending" | "ongoing" | "completed"
+    dateFilter?: DateFilterValue | null
+    minAmount?: string
+    maxAmount?: string
 }
 
-export function MarketplaceOrdersTable({ tab }: Props) {
-    const { orders, isLoading, error, refetch, applyStatus } = useMarketplaceOrders({ tab })
+export function MarketplaceOrdersTable({ dateFilter = null, minAmount, maxAmount }: Props) {
+    const [statusFilter, setStatusFilter] = useState<"all" | MarketplaceOrderListStatus>("all")
+    const { orders, total, page, lastPage, limit, isLoading, error, setPage, refetch, applyStatus } = useMarketplaceOrders({
+        statusFilter: statusFilter === "all" ? undefined : statusFilter,
+        dateFilter,
+        minAmount,
+        maxAmount,
+    })
+    const { pages, showLeftEllipsis, showRightEllipsis } = usePagination({
+        currentPage: page,
+        totalPages: lastPage,
+        paginationItemsToDisplay: 3,
+    })
+    const fromRow = total === 0 ? 0 : (page - 1) * limit + 1
+    const toRow = Math.min(page * limit, total)
     const [updatingId, setUpdatingId] = useState<string | null>(null)
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
     const [riderPickerOpen, setRiderPickerOpen] = useState(false)
@@ -135,6 +168,23 @@ export function MarketplaceOrdersTable({ tab }: Props) {
 
     return (
         <>
+        <div className="mb-3 flex justify-end">
+            <Select
+                value={statusFilter}
+                onValueChange={(value) => setStatusFilter(value as "all" | MarketplaceOrderListStatus)}
+            >
+                <SelectTrigger className="w-40" aria-label="Order status">
+                    <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                    {STATUS_FILTERS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                        </SelectItem>
+                    ))}
+                </SelectContent>
+            </Select>
+        </div>
         <div className="overflow-x-auto rounded-md border">
             {selectedAssignableIds.length > 0 && (
                 <div className="border-primary/30 bg-primary/5 flex flex-wrap items-center gap-3 border-b px-4 py-2.5 text-sm">
@@ -301,6 +351,67 @@ export function MarketplaceOrdersTable({ tab }: Props) {
                     )}
                 </TableBody>
             </Table>
+        </div>
+        <div className="flex items-center justify-between gap-3 px-1 py-3 max-sm:flex-col">
+            <p className="text-muted-foreground text-sm whitespace-nowrap" aria-live="polite">
+                {total > 0 && (
+                    <>
+                        Showing <span className="text-foreground font-medium">{fromRow}–{toRow}</span>{" "}
+                        of <span className="text-foreground font-medium">{total}</span>
+                    </>
+                )}
+            </p>
+            {lastPage > 1 && (
+                <Pagination className="mx-0 w-auto">
+                    <PaginationContent>
+                        <PaginationItem>
+                            <Button
+                                variant="ghost"
+                                onClick={() => setPage(page - 1)}
+                                disabled={page <= 1 || isLoading}
+                                aria-label="Go to previous page"
+                            >
+                                <ChevronLeftIcon />
+                                Previous
+                            </Button>
+                        </PaginationItem>
+                        {showLeftEllipsis && (
+                            <PaginationItem>
+                                <PaginationEllipsis />
+                            </PaginationItem>
+                        )}
+                        {pages.map((p) => (
+                            <PaginationItem key={p}>
+                                <Button
+                                    size="icon"
+                                    variant={p === page ? "default" : "ghost"}
+                                    onClick={() => setPage(p)}
+                                    disabled={isLoading}
+                                    aria-current={p === page ? "page" : undefined}
+                                >
+                                    {p}
+                                </Button>
+                            </PaginationItem>
+                        ))}
+                        {showRightEllipsis && (
+                            <PaginationItem>
+                                <PaginationEllipsis />
+                            </PaginationItem>
+                        )}
+                        <PaginationItem>
+                            <Button
+                                variant="ghost"
+                                onClick={() => setPage(page + 1)}
+                                disabled={page >= lastPage || isLoading}
+                                aria-label="Go to next page"
+                            >
+                                Next
+                                <ChevronRightIcon />
+                            </Button>
+                        </PaginationItem>
+                    </PaginationContent>
+                </Pagination>
+            )}
         </div>
         <MarketplaceRiderPickerSheet
             orderIds={selectedAssignableIds}
