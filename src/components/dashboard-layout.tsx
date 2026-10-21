@@ -3,7 +3,7 @@ import {
     LayoutDashboardIcon,
     Settings2Icon,
     ShoppingBagIcon,
-    ShoppingCartIcon,
+    // ShoppingCartIcon,
     StoreIcon,
     WalletIcon,
     Sun,
