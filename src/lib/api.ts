@@ -1149,6 +1149,15 @@ export const api = {
     );
   },
 
+  /** Save only the store address and coordinates. Used by the location prompt. */
+  async updateVendorLocation(data: {
+    address?: string;
+    latitude: number;
+    longitude: number;
+  }): Promise<void> {
+    await client.patch("/vendor_admin/account", data);
+  },
+
   /** Create a new vendor. */
   async createVendor(data: CreateVendorPayload): Promise<Vendor> {
     if (DEMO_MODE) {

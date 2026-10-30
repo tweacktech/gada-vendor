@@ -23,6 +23,8 @@ interface MapPickerModalProps {
     initialLat?: number
     initialLng?: number
     description?: string
+    /** When false the modal cannot be closed without confirming a location. */
+    dismissible?: boolean
     onConfirm: (address: string, lat: number, lng: number) => void
 }
 
@@ -33,6 +35,7 @@ export function MapPickerModal({
     initialLat,
     initialLng,
     description = "Drag the pin or click on the map to select the exact delivery location.",
+    dismissible = true,
     onConfirm,
 }: MapPickerModalProps) {
     const { isLoaded, loadError } = useLoadScript({
@@ -107,7 +110,7 @@ export function MapPickerModal({
     }
 
     return (
-        <Dialog open={open} onOpenChange={onOpenChange}>
+        <Dialog open={open} onOpenChange={(next) => { if (dismissible || next) onOpenChange(next) }}>
             <DialogContent className="sm:max-w-xl p-0 overflow-hidden">
                 <DialogHeader className="p-6 pb-2">
                     <DialogTitle>Select Exact Location</DialogTitle>
@@ -164,9 +167,11 @@ export function MapPickerModal({
                     </div>
 
                     <DialogFooter>
-                        <Button variant="outline" onClick={() => onOpenChange(false)}>
-                            Cancel
-                        </Button>
+                        {dismissible && (
+                            <Button variant="outline" onClick={() => onOpenChange(false)}>
+                                Cancel
+                            </Button>
+                        )}
                         <Button
                             onClick={handleConfirm}
                             disabled={!isLoaded || isGeocoding || !addressStr}

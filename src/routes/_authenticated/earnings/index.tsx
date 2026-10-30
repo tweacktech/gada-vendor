@@ -5,6 +5,14 @@ import { EyeIcon, EyeOffIcon, LandmarkIcon, WalletIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { Badge } from "@/components/ui/badge"
+import {
+    Combobox,
+    ComboboxContent,
+    ComboboxEmpty,
+    ComboboxInput,
+    ComboboxItem,
+    ComboboxList,
+} from "@/components/ui/combobox"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -274,7 +282,6 @@ function WithdrawCard({
     const [banks, setBanks] = useState<VendorBank[]>([])
     const [beneficiaries, setBeneficiaries] = useState<BankBeneficiary[]>([])
     const [banksError, setBanksError] = useState<string | null>(null)
-    const [bankQuery, setBankQuery] = useState("")
     const [beneficiaryId, setBeneficiaryId] = useState("")
     const [bankCode, setBankCode] = useState("")
     const [accountNumber, setAccountNumber] = useState("")
@@ -306,16 +313,7 @@ function WithdrawCard({
     }, [])
 
     const selectedBank = banks.find((bank) => bank.code === bankCode) ?? null
-    const visibleBanks = useMemo(() => {
-        const query = bankQuery.trim().toLowerCase()
-        if (!query) return banks
-        return banks.filter(
-            (bank) =>
-                bank.code === bankCode ||
-                bank.name.toLowerCase().includes(query) ||
-                bank.code.includes(query)
-        )
-    }, [banks, bankQuery, bankCode])
+    const bankNames = useMemo(() => banks.map((bank) => bank.name), [banks])
 
     function applyBeneficiary(id: string) {
         setBeneficiaryId(id)
@@ -453,32 +451,30 @@ function WithdrawCard({
                     )}
 
                     <div className="space-y-1.5 sm:col-span-2">
-                        <Label htmlFor="bank-search">Bank</Label>
-                        <Input
-                            id="bank-search"
-                            value={bankQuery}
-                            onChange={(event) => setBankQuery(event.target.value)}
-                            placeholder="Search banks"
-                        />
-                        <Select
-                            value={bankCode || undefined}
-                            onValueChange={(value) => {
-                                setBankCode(value)
+                        <Label>Bank</Label>
+                        <Combobox
+                            items={bankNames}
+                            value={selectedBank?.name ?? null}
+                            onValueChange={(name: string | null) => {
+                                const bank = banks.find((item) => item.name === name)
+                                setBankCode(bank?.code ?? "")
                                 setAccountName("")
                                 setBeneficiaryId("")
+                                setLookupError(null)
                             }}
                         >
-                            <SelectTrigger className="w-full">
-                                <SelectValue placeholder="Select a bank" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {visibleBanks.map((bank) => (
-                                    <SelectItem key={bank.code} value={bank.code}>
-                                        {bank.name}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
+                            <ComboboxInput placeholder="Search and select a bank" showClear />
+                            <ComboboxContent>
+                                <ComboboxEmpty>No bank found.</ComboboxEmpty>
+                                <ComboboxList>
+                                    {(name: string) => (
+                                        <ComboboxItem key={name} value={name}>
+                                            {name}
+                                        </ComboboxItem>
+                                    )}
+                                </ComboboxList>
+                            </ComboboxContent>
+                        </Combobox>
                     </div>
 
                     <div className="space-y-1.5">
