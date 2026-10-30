@@ -26,6 +26,7 @@ import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { AddressAutocomplete } from "@/components/ui/address-autocomplete"
 import { MapPickerModal } from "@/components/map-picker-modal"
+import { TransactionPinCard } from "@/components/transaction-pin-card"
 import { toast } from "sonner"
 
 export const Route = createFileRoute("/_authenticated/settings/")({
@@ -469,6 +470,8 @@ function SettingsPage() {
                 </TabsContent>
 
                 <TabsContent value="password">
+                    <TransactionPinCard />
+
                     <Card>
                         <CardHeader>
                             <CardTitle>Change Password</CardTitle>

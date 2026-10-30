@@ -1158,6 +1158,32 @@ export const api = {
     await client.patch("/vendor_admin/account", data);
   },
 
+  /** Transaction PIN status. can_manage is false for sub-vendor admins. */
+  async getTransactionPinStatus(): Promise<{ canManage: boolean; hasPin: boolean }> {
+    const res = await client.get<ApiResponse<{ can_manage: boolean; has_pin: boolean }>>("/vendor_admin/transaction-pin");
+    return {
+      canManage: Boolean(res.data.data?.can_manage),
+      hasPin: Boolean(res.data.data?.has_pin),
+    };
+  },
+
+  /** Set the transaction PIN for the first time. */
+  async setTransactionPin(pin: string, pinConfirmation: string): Promise<void> {
+    await client.post("/vendor_admin/transaction-pin", {
+      pin,
+      pin_confirmation: pinConfirmation,
+    });
+  },
+
+  /** Change an existing transaction PIN. */
+  async changeTransactionPin(data: {
+    current_pin: string;
+    new_pin: string;
+    new_pin_confirmation: string;
+  }): Promise<void> {
+    await client.post("/vendor_admin/transaction-pin/change", data);
+  },
+
   /** Create a new vendor. */
   async createVendor(data: CreateVendorPayload): Promise<Vendor> {
     if (DEMO_MODE) {
