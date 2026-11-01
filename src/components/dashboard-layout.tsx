@@ -14,6 +14,7 @@ import { useTheme } from "next-themes"
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { VendorLocationPrompt } from "@/components/vendor-location-prompt"
+import { NewOrderDialog } from "@/components/new-order-dialog"
 import { Button } from "@/components/ui/button"
 import {
     Sidebar,
@@ -104,6 +105,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
     return (
         <OrderAlertsProvider>
         <VendorLocationPrompt />
+        <NewOrderDialog />
         <SidebarProvider>
             <Sidebar collapsible="icon">
                 {/* Logo */}

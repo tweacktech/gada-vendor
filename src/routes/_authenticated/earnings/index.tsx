@@ -34,16 +34,7 @@ import {
     TableRow,
 } from "@/components/ui/table"
 import { usePageTitle } from "@/hooks/usePageTitle"
-import {
-    api,
-    ApiError,
-    type BankBeneficiary,
-    type PagedResult,
-    type VendorBank,
-    type VendorTransaction,
-    type VendorWallet,
-    type VendorWithdrawal,
-} from "@/lib/api"
+import { api, ApiError, type BankBeneficiary, type PagedResult, type VendorBank, type VendorTransaction, type VendorWallet, type VendorWithdrawal, type PayoutProvider, type WithdrawalRules } from "@/lib/api"
 import { auth } from "@/lib/auth"
 
 export const Route = createFileRoute("/_authenticated/earnings/")({
@@ -253,6 +244,8 @@ function EarningsPage() {
                 </CardContent>
             </Card>
 
+            {isStoreAdmin && <WithdrawalScheduleCard refreshKey={refreshKey} />}
+
             {isStoreAdmin && (
                 <WithdrawCard
                     balance={wallet?.balance ?? 0}
@@ -264,6 +257,64 @@ function EarningsPage() {
 
             {isStoreAdmin && <WithdrawalsCard refreshKey={refreshKey} />}
         </div>
+    )
+}
+
+function WithdrawalScheduleCard({ refreshKey }: { refreshKey: number }) {
+    const [rules, setRules] = useState<WithdrawalRules | null>(null)
+    const [error, setError] = useState<string | null>(null)
+
+    useEffect(() => {
+        let active = true
+        api.getWithdrawalRules()
+            .then((data) => {
+                if (!active) return
+                setRules(data)
+                setError(null)
+            })
+            .catch((err) => {
+                if (active) setError(errorText(err, "Could not load the withdrawal schedule."))
+            })
+        return () => {
+            active = false
+        }
+    }, [refreshKey])
+
+    if (error) {
+        return (
+            <Card>
+                <CardContent className="pt-6 text-destructive text-sm">{error}</CardContent>
+            </Card>
+        )
+    }
+    if (!rules) return null
+
+    const nextDate = rules.nextWithdrawalDate
+        ? new Date(`${rules.nextWithdrawalDate}T00:00:00`).toLocaleDateString(undefined, {
+              weekday: "long",
+              day: "numeric",
+              month: "long",
+              year: "numeric",
+          })
+        : null
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Withdrawal schedule</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2 text-sm">
+                {rules.scheduleSummary && <p>{rules.scheduleSummary}</p>}
+                {rules.paused && <p className="text-destructive">Withdrawals are paused right now.</p>}
+                <p>
+                    Withdrawals this period: {rules.withdrawalsUsed} of {rules.withdrawalsAllowed}
+                </p>
+                {nextDate && <p>Next withdrawal date: {nextDate}</p>}
+                <p>Minimum withdrawal: {formatNaira(rules.minimumAmount)}</p>
+                {rules.maximumAmount > 0 && <p>Maximum per withdrawal: {formatNaira(rules.maximumAmount)}</p>}
+                {!rules.canWithdraw && rules.reason && <p className="text-destructive">{rules.reason}</p>}
+            </CardContent>
+        </Card>
     )
 }
 
@@ -283,6 +334,7 @@ function WithdrawCard({
     const [beneficiaries, setBeneficiaries] = useState<BankBeneficiary[]>([])
     const [banksError, setBanksError] = useState<string | null>(null)
     const [beneficiaryId, setBeneficiaryId] = useState("")
+    const [provider, setProvider] = useState<PayoutProvider>("flutterwave")
     const [bankCode, setBankCode] = useState("")
     const [accountNumber, setAccountNumber] = useState("")
     const [accountName, setAccountName] = useState("")
@@ -298,7 +350,8 @@ function WithdrawCard({
 
     useEffect(() => {
         let active = true
-        Promise.all([api.getBanks(), api.getBankBeneficiaries()])
+        setBanksError(null)
+        Promise.all([api.getBanks(provider), api.getBankBeneficiaries()])
             .then(([nextBanks, nextBeneficiaries]) => {
                 if (!active) return
                 setBanks(nextBanks)
@@ -310,7 +363,16 @@ function WithdrawCard({
         return () => {
             active = false
         }
-    }, [])
+    }, [provider])
+
+    // Bank codes differ between gateways, so changing provider clears the bank and account.
+    function changeProvider(next: PayoutProvider) {
+        setProvider(next)
+        setBankCode("")
+        setBeneficiaryId("")
+        setAccountName("")
+        setLookupError(null)
+    }
 
     const selectedBank = banks.find((bank) => bank.code === bankCode) ?? null
     const bankNames = useMemo(() => banks.map((bank) => bank.name), [banks])
@@ -337,7 +399,7 @@ function WithdrawCard({
         }
         setLookingUp(true)
         try {
-            const account = await api.lookupBankAccount(accountNumber, bankCode)
+            const account = await api.lookupBankAccount(accountNumber, bankCode, provider)
             setAccountName(account.accountName)
             setAccountNumber(account.accountNumber)
         } catch (err) {
@@ -401,6 +463,7 @@ function WithdrawCard({
         setSubmitting(true)
         try {
             const message = await api.withdraw({
+                provider,
                 amount: payout,
                 accountNumber,
                 accountName,
@@ -449,6 +512,19 @@ function WithdrawCard({
                             </Select>
                         </div>
                     )}
+
+                    <div className="space-y-1.5 sm:col-span-2">
+                        <Label>Payout provider</Label>
+                        <Select value={provider} onValueChange={(value) => changeProvider(value as PayoutProvider)}>
+                            <SelectTrigger className="w-full">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="flutterwave">Flutterwave</SelectItem>
+                                <SelectItem value="paystack">Paystack</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
 
                     <div className="space-y-1.5 sm:col-span-2">
                         <Label>Bank</Label>

@@ -21,7 +21,18 @@ export interface OrderAlert {
   notificationId: string;
 }
 
+/** The most recent new order received in real time. Drives the new-order dialog. */
+export interface NewOrderEvent {
+  /** Unique per event, so a second order reopens the dialog even if the first is still open. */
+  key: number;
+  orderId: number;
+  orderNumber: string;
+  receivedAt: string;
+}
+
 export interface OrderAlertsState {
+  newOrder: NewOrderEvent | null;
+  dismissNewOrder: () => void;
   alerts: OrderAlert[];
   unreadCount: number;
   isConnected: boolean;
@@ -87,6 +98,7 @@ export function useOrderAlertsInternal(): OrderAlertsState {
   const [unreadCount, setUnreadCount] = useState(0);
   const [isConnected, setIsConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [newOrder, setNewOrder] = useState<NewOrderEvent | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const playSound = useCallback(() => {
     if (!audioRef.current) {
@@ -154,6 +166,10 @@ export function useOrderAlertsInternal(): OrderAlertsState {
     }
   }, [alerts]);
 
+  const dismissNewOrder = useCallback(() => {
+    setNewOrder(null);
+  }, []);
+
   const deleteNotification = useCallback(async (notificationId: string) => {
     await api.deleteNotification(notificationId);
     setAlerts((prev) => prev.filter((a) => a.notificationId !== notificationId));
@@ -190,6 +206,14 @@ export function useOrderAlertsInternal(): OrderAlertsState {
       const { title, description } = describeLiveEvent(payload);
       playSound();
       toast(title, { description });
+      if (payload.previous_status == null) {
+        setNewOrder({
+          key: Date.now(),
+          orderId: Number(payload.marketplace_order_id),
+          orderNumber: payload.order_number,
+          receivedAt: new Date().toISOString(),
+        });
+      }
       void refetchInbox();
     };
 
@@ -235,6 +259,8 @@ export function useOrderAlertsInternal(): OrderAlertsState {
   }, [playSound, refetchInbox]);
 
   return {
+    newOrder,
+    dismissNewOrder,
     alerts,
     unreadCount,
     isConnected,

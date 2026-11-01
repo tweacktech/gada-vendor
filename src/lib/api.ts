@@ -232,6 +232,18 @@ export interface VendorWallet {
   reason: string | null;
 }
 
+export interface WithdrawalRules {
+  canWithdraw: boolean;
+  reason: string | null;
+  paused: boolean;
+  withdrawalsUsed: number;
+  withdrawalsAllowed: number;
+  maximumAmount: number;
+  minimumAmount: number;
+  nextWithdrawalDate: string | null;
+  scheduleSummary: string | null;
+}
+
 export interface VendorTransaction {
   id: string;
   type: "credit" | "debit" | string;
@@ -268,6 +280,8 @@ export interface BankBeneficiary {
   bankName: string;
 }
 
+export type PayoutProvider = "flutterwave" | "paystack";
+
 export interface WithdrawPayload {
   amount: number;
   accountNumber: string;
@@ -276,6 +290,7 @@ export interface WithdrawPayload {
   senderName: string;
   bankName: string;
   pin: string;
+  provider?: PayoutProvider;
 }
 
 export interface VendorWithdrawal {
@@ -361,10 +376,36 @@ function messageFromApiBody(data: unknown, fallback: string): string {
 }
 
 /** Normalises an Axios error into a typed ApiError. */
+/** Requests where a 401 means "wrong credentials", not "session expired". */
+const AUTH_ENDPOINT_PATTERN =
+  /\/(login|register|forget-password|reset-password|set-password|validate-set-password-token)(\?|$|\/)/;
+
+let redirectingToLogin = false;
+
+/**
+ * The session token has expired or was revoked: clear it and reload to the
+ * login page. A full reload (not a router navigation) also drops any cached
+ * vendor state held in memory.
+ */
+function handleSessionExpired(axiosErr: AxiosError): void {
+  const url = axiosErr.config?.url ?? "";
+  if (AUTH_ENDPOINT_PATTERN.test(url)) return;
+  if (redirectingToLogin) return;
+
+  redirectingToLogin = true;
+  auth.logout();
+  if (typeof window !== "undefined" && window.location.pathname !== "/login") {
+    window.location.replace("/login");
+  }
+}
+
 function handleAxiosError(error: unknown): never {
   if (axios.isAxiosError(error)) {
     const axiosErr = error as AxiosError<{ message?: string; code?: string; errors?: Record<string, unknown> }>;
     const status = axiosErr.response?.status ?? 0;
+    if (status === 401) {
+      handleSessionExpired(axiosErr);
+    }
     const message = messageFromApiBody(
       axiosErr.response?.data,
       axiosErr.message || "Unknown error"
@@ -1167,6 +1208,24 @@ export const api = {
     };
   },
 
+  /** Withdrawal schedule, limits and whether the vendor admin can withdraw right now. */
+  async getWithdrawalRules(): Promise<WithdrawalRules> {
+    const res = await client.get<ApiResponse<Record<string, unknown>>>("/vendor_admin/withdrawals/rules");
+    const d = res.data.data ?? {};
+    const schedule = (d.schedule ?? {}) as Record<string, unknown>;
+    return {
+      canWithdraw: Boolean(d.can_withdraw),
+      reason: typeof d.reason === "string" ? d.reason : null,
+      paused: Boolean(d.paused),
+      withdrawalsUsed: Number(d.withdrawals_used ?? 0),
+      withdrawalsAllowed: Number(d.withdrawals_allowed ?? 0),
+      maximumAmount: Number(d.maximum_amount ?? 0),
+      minimumAmount: Number(d.minimum_amount ?? 10),
+      nextWithdrawalDate: typeof d.next_withdrawal_date === "string" ? d.next_withdrawal_date : null,
+      scheduleSummary: typeof schedule.summary === "string" ? schedule.summary : null,
+    };
+  },
+
   /** Set the transaction PIN for the first time. */
   async setTransactionPin(pin: string, pinConfirmation: string): Promise<void> {
     await client.post("/vendor_admin/transaction-pin", {
@@ -1591,17 +1650,22 @@ async getDashboardMetrics(params?: {
   },
 
   /** Banks available for a payout. */
-  async getBanks(): Promise<VendorBank[]> {
-    const res = await client.get<unknown>("/vendor_admin/banks");
+  async getBanks(provider: PayoutProvider = "flutterwave"): Promise<VendorBank[]> {
+    const res = await client.get<unknown>("/vendor_admin/banks", { params: { provider } });
     return unwrapRows(res.data).map(normalizeBank).filter((bank): bank is VendorBank => bank != null);
   },
 
   /** Resolve an account name for a bank and account number. */
-  async lookupBankAccount(accountNumber: string, bankCode: string): Promise<BankAccountLookup> {
+  async lookupBankAccount(
+    accountNumber: string,
+    bankCode: string,
+    provider: PayoutProvider = "flutterwave"
+  ): Promise<BankAccountLookup> {
     const res = await client.get<unknown>("/vendor_admin/banks/lookup", {
       params: {
         account_number: accountNumber,
         bank_code: bankCode,
+        provider,
       },
     });
     const root = isRecord(res.data) ? res.data : {};
