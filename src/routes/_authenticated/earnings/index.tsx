@@ -40,6 +40,9 @@ import { auth } from "@/lib/auth"
 export const Route = createFileRoute("/_authenticated/earnings/")({
     component: EarningsPage,
 })
+// Minimum amount (in Naira) a vendor can withdraw in a single request
+const MINIMUM_WITHDRAWAL_AMOUNT = 1000
+
 
 function formatNaira(amount: number): string {
     return amount.toLocaleString("en-NG", {
