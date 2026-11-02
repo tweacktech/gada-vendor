@@ -334,7 +334,8 @@ function WithdrawCard({
     const [beneficiaries, setBeneficiaries] = useState<BankBeneficiary[]>([])
     const [banksError, setBanksError] = useState<string | null>(null)
     const [beneficiaryId, setBeneficiaryId] = useState("")
-    const [provider, setProvider] = useState<PayoutProvider>("flutterwave")
+    // Vendor withdrawals always go through Flutterwave. The provider picker is not shown to vendors.
+    const provider: PayoutProvider = "flutterwave"
     const [bankCode, setBankCode] = useState("")
     const [accountNumber, setAccountNumber] = useState("")
     const [accountName, setAccountName] = useState("")
@@ -364,15 +365,6 @@ function WithdrawCard({
             active = false
         }
     }, [provider])
-
-    // Bank codes differ between gateways, so changing provider clears the bank and account.
-    function changeProvider(next: PayoutProvider) {
-        setProvider(next)
-        setBankCode("")
-        setBeneficiaryId("")
-        setAccountName("")
-        setLookupError(null)
-    }
 
     const selectedBank = banks.find((bank) => bank.code === bankCode) ?? null
     const bankNames = useMemo(() => banks.map((bank) => bank.name), [banks])
@@ -441,6 +433,10 @@ function WithdrawCard({
         }
         if (!Number.isFinite(payout) || payout <= 0) {
             setFormError("Enter an amount greater than zero.")
+            return
+        }
+        if (payout < MINIMUM_WITHDRAWAL_AMOUNT) {
+            setFormError(`The minimum withdrawal is ₦${MINIMUM_WITHDRAWAL_AMOUNT.toLocaleString()}.`)
             return
         }
         if (payout > balance) {
@@ -514,19 +510,6 @@ function WithdrawCard({
                     )}
 
                     <div className="space-y-1.5 sm:col-span-2">
-                        <Label>Payout provider</Label>
-                        <Select value={provider} onValueChange={(value) => changeProvider(value as PayoutProvider)}>
-                            <SelectTrigger className="w-full">
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="flutterwave">Flutterwave</SelectItem>
-                                <SelectItem value="paystack">Paystack</SelectItem>
-                            </SelectContent>
-                        </Select>
-                    </div>
-
-                    <div className="space-y-1.5 sm:col-span-2">
                         <Label>Bank</Label>
                         <Combobox
                             items={bankNames}
@@ -590,7 +573,7 @@ function WithdrawCard({
                         <Input
                             id="amount"
                             type="number"
-                            min="0"
+                            min={MINIMUM_WITHDRAWAL_AMOUNT}
                             step="0.01"
                             value={amount}
                             onChange={(event) => setAmount(event.target.value)}

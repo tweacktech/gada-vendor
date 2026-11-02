@@ -48,7 +48,8 @@ interface Props {
 function toFormValues(product: MarketplaceProduct): ProductFormValues {
     return {
         name: product.name,
-        marketplace_category_id: product.category_id ?? undefined,
+        // The API sends category_id as a number; the form field is a string.
+        marketplace_category_id: product.category_id != null ? String(product.category_id) : "",
         price: product.price,
         discount_price: product.discount_price ?? "",
         unit: product.unit ?? "",
@@ -128,9 +129,12 @@ function ProductEditForm({
                 name: data.name,
                 marketplace_category_id: data.marketplace_category_id || null,
                 price: data.price,
-                discount_price: data.discount_price === "" ? null : Number(data.discount_price),
-                unit: data.unit || undefined,
-                description: data.description || undefined,
+                discount_price:
+                    data.discount_price === "" || data.discount_price == null
+                        ? null
+                        : Number(data.discount_price),
+                unit: data.unit ?? "",
+                description: data.description ?? "",
                 image: imageFile,
             })
             toast.success("Product updated")
@@ -144,6 +148,14 @@ function ProductEditForm({
 
     return (
         <form onSubmit={handleSubmit(onSubmit)} className="mt-6 space-y-6 p-6">
+            {Object.values(errors).length > 0 && (
+                <div className="rounded-md border border-destructive/40 p-3 text-destructive text-sm space-y-1">
+                    {Object.values(errors).map((fieldError) => (
+                        <p key={fieldError?.message}>{fieldError?.message}</p>
+                    ))}
+                </div>
+            )}
+            {serverError && <p className="text-destructive text-sm">{serverError}</p>}
             <div className="space-y-2">
                 <Label htmlFor="edit-name">Product Name</Label>
                 <Input id="edit-name" placeholder="e.g. Jollof Rice" {...register("name")} />

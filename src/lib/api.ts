@@ -282,6 +282,9 @@ export interface BankBeneficiary {
 
 export type PayoutProvider = "flutterwave" | "paystack";
 
+/** Minimum withdrawal for riders and vendors, in naira. Keep in sync with the backend. */
+export const MINIMUM_WITHDRAWAL_AMOUNT = 1000;
+
 export interface WithdrawPayload {
   amount: number;
   accountNumber: string;
@@ -1220,10 +1223,21 @@ export const api = {
       withdrawalsUsed: Number(d.withdrawals_used ?? 0),
       withdrawalsAllowed: Number(d.withdrawals_allowed ?? 0),
       maximumAmount: Number(d.maximum_amount ?? 0),
-      minimumAmount: Number(d.minimum_amount ?? 10),
+      minimumAmount: Number(d.minimum_amount ?? MINIMUM_WITHDRAWAL_AMOUNT),
       nextWithdrawalDate: typeof d.next_withdrawal_date === "string" ? d.next_withdrawal_date : null,
       scheduleSummary: typeof schedule.summary === "string" ? schedule.summary : null,
     };
+  },
+
+  /** Send a reset code to the account's phone. Returns the masked number it was sent to. */
+  async requestTransactionPinReset(): Promise<{ sentTo: string | null }> {
+    const res = await client.post<ApiResponse<{ sent_to?: string }>>("/vendor_admin/transaction-pin/forgot");
+    return { sentTo: res.data.data?.sent_to ?? null };
+  },
+
+  /** Verify the reset code and set a new transaction PIN. */
+  async resetTransactionPin(data: { otp: string; pin: string; pin_confirmation: string }): Promise<void> {
+    await client.post("/vendor_admin/transaction-pin/reset", data);
   },
 
   /** Set the transaction PIN for the first time. */
@@ -1563,12 +1577,17 @@ async getDashboardMetrics(params?: {
   ): Promise<MarketplaceProduct> {
     const form = new FormData();
     form.append("_method", "PUT");
-    if (data.name) form.append("name", data.name);
+    if (data.name !== undefined) form.append("name", data.name);
     if (data.price != null) form.append("price", String(data.price));
-    if (data.marketplace_category_id) form.append("marketplace_category_id", data.marketplace_category_id);
-    if (data.description) form.append("description", data.description);
-    if (data.discount_price != null) form.append("discount_price", String(data.discount_price));
-    if (data.unit) form.append("unit", data.unit);
+    // Nullable fields: send "" to clear them (Laravel turns "" into null).
+    if (data.marketplace_category_id !== undefined) {
+      form.append("marketplace_category_id", data.marketplace_category_id ?? "");
+    }
+    if (data.description !== undefined) form.append("description", data.description ?? "");
+    if (data.discount_price !== undefined) {
+      form.append("discount_price", data.discount_price == null ? "" : String(data.discount_price));
+    }
+    if (data.unit !== undefined) form.append("unit", data.unit ?? "");
     if (data.stock_quantity != null) form.append("stock_quantity", String(data.stock_quantity));
     if (data.is_available != null) form.append("is_available", data.is_available ? "1" : "0");
     if (data.image) form.append("image", data.image);
